@@ -1,4 +1,4 @@
-# Guía rápida de uso en campo · CASUR Transportes GPS V5.2
+# Guía rápida de uso en campo · CASUR Transportes GPS V5
 
 ## Para el conductor
 
@@ -40,6 +40,9 @@ Muestra historial, opciones avanzadas, capas y exportación consolidada. Úselo 
 La app guarda automáticamente el recorrido activo en el navegador. Al finalizar, queda en historial local. Para respaldo externo, descargue Excel/PDF o comparta el recorrido por WhatsApp (adjunta PDF + Excel en teléfonos compatibles).
 
 
-## Pantalla limpia
+## Actualización V5.4 · Referencia actual visible
 
-En esta versión no deben verse en la pantalla principal mensajes técnicos como “lotes/fincas cargados” ni “autosalvado listo”. Si aparecen, probablemente el teléfono está usando caché viejo; cierre la app, recargue el sitio o limpie datos del sitio.
+- En Modo Conductor se muestra una línea simple de ubicación: `Ubicación: Cerca de finca/lote` o referencia operativa.
+- En Modo Supervisor se muestra más detalle: tipo de referencia, distancia aproximada, fuente y precisión GPS.
+- La referencia se mantiene visible aun cuando la bitácora está compacta, sin volver a mostrar badges técnicos de autosalvado o conteo de lotes.
+- Se conserva la regla: lote/finca dentro del shape → cerca de lote/finca → referencia operativa → sin referencia.

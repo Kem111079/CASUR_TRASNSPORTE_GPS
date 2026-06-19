@@ -1,10 +1,10 @@
-/* CASUR Transportes GPS V5.2 Campo Limpio
+/* CASUR Transportes GPS V5.4 Referencia Actual
    PWA de campo para recorridos, lotes/fincas, paradas y exportación operativa.
    Sin backend. Rastreo manual, visible y controlado por el usuario. */
 (function(){
   'use strict';
 
-  const APP_VERSION = (window.CASUR_BOOT && window.CASUR_BOOT.version) || '5.2.0-campo-limpio';
+  const APP_VERSION = (window.CASUR_BOOT && window.CASUR_BOOT.version) || '5.4.0-referencia-actual';
   const STORAGE_ACTIVE = 'casur_transportes_active_trip_v4';
   const STORAGE_HISTORY = 'casur_transportes_history_v4';
   const STORAGE_CFG = 'casur_transportes_cfg_v4';
@@ -29,10 +29,10 @@
     driver: $('driver'), plate: $('plate'), equipment: $('equipment'), tripType: $('tripType'), origin: $('origin'), destination: $('destination'), initialNote: $('initialNote'),
     cfgMinSec: $('cfgMinSec'), cfgMinMeters: $('cfgMinMeters'), cfgStopMin: $('cfgStopMin'), cfgStopSpeed: $('cfgStopSpeed'), cfgBadAcc: $('cfgBadAcc'), cfgGapMin: $('cfgGapMin'),
     btnStart: $('btnStart'), btnStop: $('btnStop'), btnRestartGps: $('btnRestartGps'), btnSaveCheckpoint: $('btnSaveCheckpoint'), btnMarkPlace: $('btnMarkPlace'),
-    autoReading: $('autoReading'), contextBox: $('contextBox'),
+    autoReading: $('autoReading'), contextBox: $('contextBox'), locationLine: $('locationLine'),
     btnExcel: $('btnExcel'), btnReport: $('btnReport'), btnWhatsapp: $('btnWhatsapp'), btnCard: $('btnCard'), btnPdf: $('btnPdf'), btnShare: $('btnShare'),
     historyList: $('historyList'), btnClearHistory: $('btnClearHistory'), btnNewTrip: $('btnNewTrip'), btnExportAll: $('btnExportAll'),
-    exportBlock: $('exportBlock'), historyBlock: $('historyBlock'), advancedBlock: $('advancedBlock'),
+    exportBlock: $('exportBlock'), historyBlock: $('historyBlock'), advancedBlock: $('advancedBlock'), tripDataBlock: $('tripDataBlock'), summaryBlock: $('summaryBlock'), driverGuide: $('driverGuide'),
     activeBar: $('activeBar'), activeBarText: $('activeBarText'), btnStopBar: $('btnStopBar'), toast: $('toast')
   };
 
@@ -173,6 +173,18 @@
   function collapsePanel(){ setPanelCollapsed(true); }
   function expandPanel(){ setPanelCollapsed(false); }
   function togglePanel(){ setPanelCollapsed(!el.panel.classList.contains('collapsed')); }
+  function openDriverBlocks(){
+    // En modo conductor, lo esencial siempre debe quedar accesible: datos del viaje y exportación.
+    if(el.tripDataBlock) el.tripDataBlock.open = !state.activeTrip;
+    if(el.summaryBlock) el.summaryBlock.open = !!(state.activeTrip || latestTrip());
+    if(el.exportBlock) el.exportBlock.open = !!latestTrip() || !state.activeTrip;
+  }
+  function openSupervisorBlocks(){
+    if(el.historyBlock) el.historyBlock.open = true;
+    if(el.advancedBlock) el.advancedBlock.open = true;
+    if(el.exportBlock) el.exportBlock.open = true;
+    if(el.summaryBlock) el.summaryBlock.open = true;
+  }
   function getCfg(){
     return {
       minSec: clamp(parseFloat(el.cfgMinSec.value), 2, 30, defaultCfg.minSec),
@@ -617,12 +629,39 @@
     toast('GPS: '+msg+'. Puede finalizar el recorrido aunque la señal sea mala.', 5200);
   }
 
+
+  function renderContextLine(ctx, extra){
+    ctx = normalizeContext(ctx || state.currentContext);
+    const simple = ctx.tipo === 'Sin referencia' ? 'Sin referencia cercana' : (ctx.lugar || 'Sin referencia');
+    const distText = ctx.distanciaM !== null && ctx.distanciaM !== undefined ? `${Math.round(ctx.distanciaM)} m` : '';
+    const typeText = ctx.tipo || 'Referencia';
+    const sourceText = ctx.fuente || '';
+    const accuracyText = extra && Number.isFinite(Number(extra.accuracy)) ? `Precisión ${fmtMeters(extra.accuracy)}` : '';
+    const rumboText = extra && extra.rumbo ? `Rumbo ${extra.rumbo}` : '';
+    const detailParts = state.mode === 'supervisor'
+      ? [typeText, distText ? `Distancia aprox. ${distText}` : '', sourceText, accuracyText, rumboText].filter(Boolean)
+      : [typeText, distText ? `${distText} aprox.` : '', accuracyText].filter(Boolean);
+    if(el.locationLine){
+      el.locationLine.classList.toggle('no-ref', ctx.tipo === 'Sin referencia');
+      el.locationLine.classList.toggle('near-ref', /^Cerca/i.test(typeText));
+      el.locationLine.classList.toggle('inside-ref', typeText === 'Lote/Finca');
+      el.locationLine.innerHTML = `<span class="location-kicker">${state.mode === 'supervisor' ? 'Referencia actual' : 'Ubicación'}</span><b>${escapeHtml(simple)}</b><small>${escapeHtml(detailParts.join(' · ') || 'Active GPS para actualizar.')}</small>`;
+    }
+    if(el.contextBox){
+      if(state.mode === 'supervisor'){
+        const det = [contextForExport(ctx), typeText, sourceText, accuracyText, rumboText].filter(Boolean).join(' · ');
+        el.contextBox.textContent = `Referencia actual: ${det}`;
+      } else {
+        el.contextBox.textContent = `Ubicación: ${contextForExport(ctx)}${accuracyText ? ' · '+accuracyText : ''}.`;
+      }
+    }
+  }
   function updateLivePosition(raw){
     state.currentPosition = { lat:raw.lat, lng:raw.lng, timestamp:raw.timestamp, accuracy:raw.accuracy, heading:raw.headingRaw };
     const ctx = resolveContext(state.currentPosition);
     state.currentContext = ctx;
     if(el.refBadge) setBadge(el.refBadge, ctx.tipo === 'Sin referencia' ? 'Sin referencia cercana' : ctx.lugar, ctx.tipo === 'Sin referencia' ? 'warn' : 'ok');
-    if(el.contextBox) el.contextBox.textContent = `Referencia actual: ${contextForExport(ctx)} · Precisión ${fmtMeters(raw.accuracy)}.`;
+    renderContextLine(ctx, { accuracy: raw.accuracy, rumbo: degToCompass(raw.headingRaw) });
     if(state.map){
       const html = `<div class="vehicle-marker"><span style="transform:rotate(${raw.headingRaw || 0}deg)">➤</span></div>`;
       if(state.lastKnownMarker){ state.lastKnownMarker.setLatLng([raw.lat, raw.lng]); state.lastKnownMarker.setPopupContent(`<b>Ubicación actual</b><br>${localStamp(raw.timestamp)}<br>${escapeHtml(contextForExport(ctx))}<br>Precisión: ${fmtMeters(raw.accuracy)}`); }
@@ -798,7 +837,7 @@
     const last = trip.points && trip.points[trip.points.length-1];
     if(last){
       const ctx = normalizeContext({finca:last.finca, lote:last.lote, zona:last.zona, lugar:last.referencia, tipo:last.tipoReferencia, distanciaM:last.distanciaReferenciaM, fuente:last.fuenteReferencia});
-      el.contextBox.textContent = `Referencia actual: ${contextForExport(ctx)} · Precisión ${fmtMeters(last.accuracy)} · Rumbo ${last.rumbo || degToCompass(last.heading)}.`;
+      renderContextLine(ctx, { accuracy: last.accuracy, rumbo: last.rumbo || degToCompass(last.heading) });
       if(el.refBadge) setBadge(el.refBadge, ctx.tipo === 'Sin referencia' ? 'Sin referencia cercana' : ctx.lugar, ctx.tipo === 'Sin referencia' ? 'warn' : 'ok');
     }
   }
@@ -859,14 +898,25 @@
     if(el.btnStart) el.btnStart.classList.toggle('hidden', active);
     if(el.btnStop) el.btnStop.classList.toggle('hidden', !active);
     if(el.activeBar) el.activeBar.classList.toggle('hidden', !active);
-    if(active) collapsePanel();
-    else expandPanel();
+    if(active){
+      // En recorrido activo dejamos el panel compacto, pero no ocultamos las acciones críticas.
+      collapsePanel();
+      if(el.summaryBlock) el.summaryBlock.open = true;
+    } else {
+      // Al terminar o preparar nuevo recorrido, abrir para que el conductor pueda descargar o llenar datos.
+      expandPanel();
+      openDriverBlocks();
+    }
   }
   function prepareNewTrip(){
     if(state.activeTrip){ toast('Hay un recorrido activo. Finalícelo antes de iniciar uno nuevo.'); expandPanel(); return; }
     ['origin','destination','initialNote'].forEach(id=>{ if(el[id]) el[id].value=''; });
     if(el.autoReading) el.autoReading.textContent = 'Listo para registrar un nuevo recorrido. Complete origen/destino y toque Iniciar.';
-    if(el.contextBox) el.contextBox.textContent = state.currentContext ? `Referencia actual: ${contextForExport(state.currentContext)}` : 'Referencia actual: sin punto GPS.';
+    if(state.currentContext) renderContextLine(state.currentContext, { accuracy: state.currentPosition && state.currentPosition.accuracy });
+    else {
+      if(el.contextBox) el.contextBox.textContent = 'Referencia actual: sin punto GPS.';
+      if(el.locationLine) el.locationLine.innerHTML = '<span class="location-kicker">Ubicación</span><b>Sin punto GPS</b><small>Active GPS para mostrar finca, lote o referencia cercana.</small>';
+    }
     state.routeLayer && state.routeLayer.clearLayers();
     state.arrowLayer && state.arrowLayer.clearLayers();
     state.markerLayer && state.markerLayer.clearLayers();
@@ -1366,7 +1416,19 @@ GPS: ${m.gpsQuality}`;
     localStorage.setItem(STORAGE_MODE, mode);
     document.body.classList.toggle('mode-supervisor', mode === 'supervisor');
     document.body.classList.toggle('mode-driver', mode !== 'supervisor');
-    if(el.btnMode) el.btnMode.textContent = mode === 'supervisor' ? 'Modo Conductor' : 'Modo Supervisor';
+    document.body.dataset.mode = mode;
+    if(el.btnMode) el.btnMode.textContent = mode === 'supervisor' ? '👷 Modo Conductor' : '🛡️ Modo Supervisor';
+    if(mode === 'supervisor'){
+      // Antes el usuario no veía cambios porque el panel podía estar colapsado.
+      expandPanel();
+      openSupervisorBlocks();
+    } else {
+      if(el.historyBlock) el.historyBlock.open = false;
+      if(el.advancedBlock) el.advancedBlock.open = false;
+      openDriverBlocks();
+      if(!state.activeTrip) expandPanel();
+    }
+    if(state.currentContext) renderContextLine(state.currentContext, { accuracy: state.currentPosition && state.currentPosition.accuracy, rumbo: state.currentPosition && degToCompass(state.currentPosition.heading) });
   }
   function toggleMode(){
     const next = state.mode === 'supervisor' ? 'driver' : 'supervisor';
@@ -1477,7 +1539,7 @@ GPS: ${m.gpsQuality}`;
   function tick(){ updateMetrics(state.activeTrip || latestTrip()); }
   function registerServiceWorker(){
     if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('service-worker.js?v=5.2.0').then(reg => { reg.update && reg.update(); }).catch(console.warn);
+      navigator.serviceWorker.register('service-worker.js?v=5.4.0').then(reg => { reg.update && reg.update(); }).catch(console.warn);
     }
   }
   function escapeHtml(v){ return String(v ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
@@ -1486,11 +1548,17 @@ GPS: ${m.gpsQuality}`;
     loadCfg(); loadMode(); loadHistory(); bindEvents();
     await initMap();
     loadActiveTrip();
+    if(!state.activeTrip){
+      // En el arranque, el conductor debe ver de inmediato las opciones para registrar datos y exportar.
+      openDriverBlocks();
+      expandPanel();
+    }
+    if(state.currentContext) renderContextLine(state.currentContext, { accuracy: state.currentPosition && state.currentPosition.accuracy });
     registerServiceWorker();
     loadLogoDataUrl();
     el.bootMsg.classList.add('hidden');
     state.timer = setInterval(tick, 1000);
-    setBadge(el.saveBadge, 'Guardado local listo', 'ok');
+    // Autosalvado interno habilitado, sin mostrar mensajes técnicos en pantalla de campo.
     const insecure = !window.isSecureContext && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
     if(insecure){
       setBadge(el.gpsBadge, 'Sin HTTPS · GPS no disponible', 'danger');
@@ -1498,7 +1566,7 @@ GPS: ${m.gpsQuality}`;
       el.bootMsg.innerHTML = 'Esta app necesita abrirse por HTTPS (enlace https://) para usar GPS y compartir. Abra el enlace publicado, no el archivo local.';
       toast('Atención: sin HTTPS el GPS y el compartir no funcionarán. Use el enlace https:// publicado.', 8000);
     } else {
-      toast('CASUR Transportes GPS V5.2 lista. Modo Conductor activo; use Modo Supervisor para historial y opciones avanzadas.');
+      toast('CASUR Transportes GPS V5.4 lista. Active GPS para ver ubicación por finca, lote o referencia cercana.');
     }
   }
 

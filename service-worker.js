@@ -1,8 +1,8 @@
-const CACHE_NAME = 'casur-transportes-gps-v5-2-campo-limpio-20260619-01';
+const CACHE_NAME = 'casur-transportes-gps-v5-4-referencia-actual-20260619-01';
 const APP_SHELL = [
-  './', './index.html', './styles.css?v=5.2.0', './app.js?v=5.2.0', './manifest.json', './offline.html',
+  './', './index.html', './styles.css?v=5.4.0', './app.js?v=5.4.0', './manifest.json', './offline.html',
   './assets/logo_casur.png',
-  './data/poligonos_casur.geojson?v=5.2.0', './data/metadata.json', './data/referencias_operativas.json?v=5.2.0', './data/maestro_fincas.json',
+  './data/poligonos_casur.geojson?v=5.4.0', './data/metadata.json', './data/referencias_operativas.json?v=5.4.0', './data/maestro_fincas.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/favicon.png'
 ];
 

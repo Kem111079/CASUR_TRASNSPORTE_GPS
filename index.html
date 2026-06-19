@@ -11,9 +11,9 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png" />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="stylesheet" href="styles.css?v=5.2.0" />
+  <link rel="stylesheet" href="styles.css?v=5.4.0" />
   <script>
-    window.CASUR_BOOT = { version: '5.2.0-campo-limpio', build: 'CASUR_TRANSPORTES_GPS_V5_2_CAMPO_LIMPIO' };
+    window.CASUR_BOOT = { version: '5.4.0-referencia-actual', build: 'CASUR_TRANSPORTES_GPS_V5_4_REFERENCIA_ACTUAL' };
     function loadCss(url){ return new Promise(function(resolve){ var l=document.createElement('link'); l.rel='stylesheet'; l.href=url; l.onload=resolve; l.onerror=resolve; document.head.appendChild(l); }); }
     function loadScript(url, timeoutMs){
       return new Promise(function(resolve,reject){
@@ -35,7 +35,7 @@
       catch(eP){ try { await loadScript('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js', 15000); } catch(eP2){ console.warn('jsPDF no disponible; el PDF usará respaldo HTML imprimible.', eP2); } }
       try { await loadScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js', 12000); }
       catch(eA){ console.warn('autotable no disponible; el PDF usará tablas simples.', eA); }
-      try { await loadScript('app.js?v=5.2.0', 15000); }
+      try { await loadScript('app.js?v=5.4.0', 15000); }
       catch(e){ document.body.classList.add('boot-error'); document.getElementById('bootMsg').innerHTML = 'No se pudo cargar app.js. Revise conexión, caché o GitHub Pages.'; console.error(e); }
     }
     document.addEventListener('DOMContentLoaded', casurLoadLibraries);
@@ -90,6 +90,12 @@
           <article class="metric-card"><span>Paradas</span><b id="mStops">0</b></article>
         </section>
 
+        <div id="locationLine" class="location-line" aria-live="polite">
+          <span class="location-kicker">Ubicación</span>
+          <b>Sin punto GPS</b>
+          <small>Active GPS para mostrar finca, lote o referencia cercana.</small>
+        </div>
+
         <section class="buttons-card flat main-actions">
           <button id="btnStart" class="primary-btn" type="button">▶ Iniciar recorrido</button>
           <button id="btnStop" class="danger-btn hidden" type="button">■ Finalizar recorrido</button>
@@ -97,7 +103,11 @@
           <button id="btnSaveCheckpoint" class="secondary-btn" type="button">★ Punto clave</button>
         </section>
 
-        <details class="control-block" open>
+        <section id="driverGuide" class="driver-guide" aria-label="Guía rápida del conductor">
+          <b>Uso rápido:</b> llene conductor/placa, active GPS, inicie, finalice y descargue Excel/PDF.
+        </section>
+
+        <details id="tripDataBlock" class="control-block driver-main" open>
           <summary>Datos del viaje</summary>
           <div class="form-grid compact-fields">
             <label>Conductor<input id="driver" autocomplete="name" placeholder="Nombre" /></label>
@@ -110,13 +120,13 @@
           </div>
         </details>
 
-        <details class="control-block">
+        <details id="summaryBlock" class="control-block driver-main">
           <summary>Resumen rápido</summary>
           <p id="autoReading">Active GPS e inicie un recorrido para generar lectura operativa.</p>
           <div id="contextBox" class="context-box">Referencia actual: sin punto GPS.</div>
         </details>
 
-        <details id="exportBlock" class="control-block">
+        <details id="exportBlock" class="control-block driver-main">
           <summary>Descargas y compartir</summary>
           <div class="exports-card flat-exports">
             <button id="btnPdf" type="button">📄 PDF del recorrido</button>
