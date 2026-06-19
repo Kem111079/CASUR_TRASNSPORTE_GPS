@@ -1,4 +1,4 @@
-# Guía rápida de uso en campo · CASUR Transportes GPS V5
+# Guía rápida de uso en campo · CASUR Transportes GPS V5.2
 
 ## Para el conductor
 
@@ -38,3 +38,8 @@ Muestra historial, opciones avanzadas, capas y exportación consolidada. Úselo 
 ## Respaldo
 
 La app guarda automáticamente el recorrido activo en el navegador. Al finalizar, queda en historial local. Para respaldo externo, descargue Excel/PDF o comparta el recorrido por WhatsApp (adjunta PDF + Excel en teléfonos compatibles).
+
+
+## Pantalla limpia
+
+En esta versión no deben verse en la pantalla principal mensajes técnicos como “lotes/fincas cargados” ni “autosalvado listo”. Si aparecen, probablemente el teléfono está usando caché viejo; cierre la app, recargue el sitio o limpie datos del sitio.

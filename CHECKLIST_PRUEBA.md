@@ -1,4 +1,4 @@
-# Checklist de prueba · CASUR Transportes GPS V5
+# Checklist de prueba · CASUR Transportes GPS V5.2 Campo Limpio
 
 ## 1. Carga de app
 
@@ -60,12 +60,15 @@
 - [ ] Al regresar, conserva métricas.
 - [ ] Si hubo pausa larga, registra evento de posible segundo plano.
 
-## 9. Novedades V5.1 (campo)
+## 9. Novedades V5.1/V5.2 (campo limpio)
 
 - [ ] Al iniciar recorrido, la **pantalla se mantiene encendida** sola (Wake Lock) mientras la app está abierta.
 - [ ] Si el teléfono recarga la app en pleno viaje, **recupera el recorrido y reanuda el GPS automáticamente** (no hay que tocar "Reiniciar GPS").
 - [ ] Durante el recorrido, el mapa **sigue al vehículo** y solo recentra cuando se sale de pantalla; al arrastrar el mapa, deja de seguir hasta tocar "Activar GPS".
 - [ ] Si se abre sin HTTPS (archivo local o http), aparece un **aviso claro** de que el GPS y el compartir no funcionarán.
+
+- [ ] No aparece en la pantalla principal ningún texto tipo “lotes/fincas cargados” ni “autosalvado listo”.
+- [ ] El service worker no deja pegada una versión vieja después de actualizar.
 
 ## Cómo correr la prueba de campo (recomendado)
 

@@ -11,9 +11,9 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png" />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="stylesheet" href="styles.css?v=5.1.0" />
+  <link rel="stylesheet" href="styles.css?v=5.2.0" />
   <script>
-    window.CASUR_BOOT = { version: '5.1.0-campo', build: 'CASUR_TRANSPORTES_GPS_V5_UX_MULTIRECORRIDO' };
+    window.CASUR_BOOT = { version: '5.2.0-campo-limpio', build: 'CASUR_TRANSPORTES_GPS_V5_2_CAMPO_LIMPIO' };
     function loadCss(url){ return new Promise(function(resolve){ var l=document.createElement('link'); l.rel='stylesheet'; l.href=url; l.onload=resolve; l.onerror=resolve; document.head.appendChild(l); }); }
     function loadScript(url, timeoutMs){
       return new Promise(function(resolve,reject){
@@ -35,7 +35,7 @@
       catch(eP){ try { await loadScript('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js', 15000); } catch(eP2){ console.warn('jsPDF no disponible; el PDF usará respaldo HTML imprimible.', eP2); } }
       try { await loadScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js', 12000); }
       catch(eA){ console.warn('autotable no disponible; el PDF usará tablas simples.', eA); }
-      try { await loadScript('app.js?v=5.1.0', 15000); }
+      try { await loadScript('app.js?v=5.2.0', 15000); }
       catch(e){ document.body.classList.add('boot-error'); document.getElementById('bootMsg').innerHTML = 'No se pudo cargar app.js. Revise conexión, caché o GitHub Pages.'; console.error(e); }
     }
     document.addEventListener('DOMContentLoaded', casurLoadLibraries);
@@ -59,18 +59,16 @@
     <main class="layout">
       <section class="map-wrap" id="mapWrap">
         <div id="map" class="map"></div>
-        <div class="map-badges clean">
+        <div class="map-badges clean" aria-live="polite">
           <span id="gpsBadge" class="badge danger">GPS detenido</span>
           <span id="refBadge" class="badge neutral soft-hidden hidden" aria-hidden="true">Sin referencia</span>
-          <span id="shapeBadge" class="badge neutral technical-badge hidden" aria-hidden="true">Cargando lotes…</span>
-          <span id="saveBadge" class="badge neutral technical-badge hidden" aria-hidden="true">Autosave listo</span>
         </div>
         <div id="compassBox" class="compass-box hidden" aria-label="Referencia norte">
           <div class="compass-arrow">▲</div>
           <div>N</div>
         </div>
         <div class="map-actions clean-actions">
-          <button id="btnLocate" type="button">📍 Centrar mapa</button>
+          <button id="btnLocate" type="button">📍 Activar GPS</button>
           <button id="btnFitRoute" type="button">↔ Ver ruta</button>
         </div>
       </section>
@@ -156,7 +154,7 @@
             <label>Precisión baja m<input id="cfgBadAcc" type="number" min="20" max="300" step="5" value="60" /></label>
             <label>Alerta pausa min.<input id="cfgGapMin" type="number" min="1" max="60" step="1" value="3" /></label>
           </div>
-          <div class="technical-note">Los lotes, autosalvado y caché se mantienen activos, pero se ocultan de la vista normal para no distraer al transportista.</div>
+          <div class="technical-note">Opciones para supervisión. En modo conductor estas funciones permanecen ocultas para mantener la pantalla simple.</div>
         </details>
       </aside>
     </main>

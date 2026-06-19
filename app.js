@@ -1,13 +1,14 @@
-/* CASUR Transportes GPS V5 UX Multirecorrido
+/* CASUR Transportes GPS V5.2 Campo Limpio
    PWA de campo para recorridos, lotes/fincas, paradas y exportación operativa.
    Sin backend. Rastreo manual, visible y controlado por el usuario. */
 (function(){
   'use strict';
 
-  const APP_VERSION = (window.CASUR_BOOT && window.CASUR_BOOT.version) || '5.1.0-campo';
+  const APP_VERSION = (window.CASUR_BOOT && window.CASUR_BOOT.version) || '5.2.0-campo-limpio';
   const STORAGE_ACTIVE = 'casur_transportes_active_trip_v4';
   const STORAGE_HISTORY = 'casur_transportes_history_v4';
   const STORAGE_CFG = 'casur_transportes_cfg_v4';
+  const TECHNICAL_BADGE_IDS = new Set(['shapeBadge','saveBadge']);
   const STORAGE_REFS = 'casur_transportes_referencias_v4';
   const STORAGE_FOLIO = 'casur_transportes_folio_v4';
   const STORAGE_MODE = 'casur_transportes_ui_mode_v5';
@@ -150,7 +151,14 @@
   function setBadge(node, text, kind){
     if(!node) return;
     node.textContent = text;
-    const hidden = node.classList.contains('technical-badge') || node.classList.contains('soft-hidden') || node.classList.contains('hidden') ? ' hidden' : '';
+    // Estos indicadores son técnicos. Se actualizan internamente, pero nunca deben volver a aparecer en la vista de campo.
+    if(TECHNICAL_BADGE_IDS.has(node.id)){
+      node.className = 'hidden';
+      node.setAttribute('aria-hidden','true');
+      node.style.display = 'none';
+      return;
+    }
+    const hidden = node.classList.contains('soft-hidden') || node.classList.contains('hidden') ? ' hidden' : '';
     node.className = `badge ${kind || 'neutral'}${hidden}`;
   }
   function on(node, ev, fn, opts){ if(node) node.addEventListener(ev, fn, opts || false); }
@@ -376,7 +384,7 @@
   }
   async function loadLots(){
     try{
-      const res = await fetch('data/poligonos_casur.geojson?v=5.1.0', { cache:'no-store' });
+      const res = await fetch('data/poligonos_casur.geojson?v=5.2.0', { cache:'no-store' });
       if(!res.ok) throw new Error('GeoJSON no disponible');
       state.lotsGeojson = await res.json();
       state.lotFeatures = (state.lotsGeojson.features || []).filter(f => f.geometry && ['Polygon','MultiPolygon'].includes(f.geometry.type));
@@ -400,7 +408,7 @@
     const local = loadLocalReferences();
     let defaults = [];
     try{
-      const res = await fetch('data/referencias_operativas.json?v=5.1.0', { cache:'no-store' });
+      const res = await fetch('data/referencias_operativas.json?v=5.2.0', { cache:'no-store' });
       if(res.ok){ const json = await res.json(); defaults = Array.isArray(json) ? json : (json.referencias || []); }
     }catch(e){ console.warn('Referencias operativas no cargadas', e); }
     const all = [];
@@ -1426,10 +1434,12 @@ GPS: ${m.gpsQuality}`;
   function activateLocation(){
     if(!navigator.geolocation){ toast('GPS no disponible en este navegador.'); return; }
     state.followMode = true;
+    if(el.btnLocate) el.btnLocate.textContent = state.activeTrip ? '📍 Mi posición' : '📍 Activando GPS';
     if(state.activeTrip){
       // Hay recorrido activo: el GPS ya graba. Solo recentrar el mapa en la posición actual.
       if(state.currentPosition && state.map){
         state.map.setView([state.currentPosition.lat, state.currentPosition.lng], state.map.getZoom(), { animate:true });
+        if(el.btnLocate) el.btnLocate.textContent = '📍 Mi posición';
         toast('Mapa centrado en tu posición. El GPS sigue grabando el recorrido.');
       } else {
         toast('Esperando posición GPS para centrar el mapa…');
@@ -1442,7 +1452,8 @@ GPS: ${m.gpsQuality}`;
         const raw = { timestamp:pos.timestamp ? new Date(pos.timestamp).toISOString() : nowIso(), lat:Number(pos.coords.latitude), lng:Number(pos.coords.longitude), accuracy:Number(pos.coords.accuracy||9999), headingRaw:Number.isFinite(pos.coords.heading)?Number(pos.coords.heading):0 };
         updateLivePosition(raw);
         if(state.map) state.map.setView([raw.lat,raw.lng], 17, { animate:true });
-      }, handleGeoError, { enableHighAccuracy:true, timeout:12000, maximumAge:0 });
+        if(el.btnLocate) el.btnLocate.textContent = '📍 Mi posición';
+      }, (err)=>{ if(el.btnLocate) el.btnLocate.textContent = '📍 Activar GPS'; handleGeoError(err); }, { enableHighAccuracy:true, timeout:12000, maximumAge:0 });
     }
   }
   function handleVisibility(){
@@ -1466,7 +1477,7 @@ GPS: ${m.gpsQuality}`;
   function tick(){ updateMetrics(state.activeTrip || latestTrip()); }
   function registerServiceWorker(){
     if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('service-worker.js?v=5.1.0').then(reg => { reg.update && reg.update(); }).catch(console.warn);
+      navigator.serviceWorker.register('service-worker.js?v=5.2.0').then(reg => { reg.update && reg.update(); }).catch(console.warn);
     }
   }
   function escapeHtml(v){ return String(v ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
@@ -1487,7 +1498,7 @@ GPS: ${m.gpsQuality}`;
       el.bootMsg.innerHTML = 'Esta app necesita abrirse por HTTPS (enlace https://) para usar GPS y compartir. Abra el enlace publicado, no el archivo local.';
       toast('Atención: sin HTTPS el GPS y el compartir no funcionarán. Use el enlace https:// publicado.', 8000);
     } else {
-      toast('CASUR Transportes GPS V5 lista. Modo Conductor activo; use Modo Supervisor para historial y opciones avanzadas.');
+      toast('CASUR Transportes GPS V5.2 lista. Modo Conductor activo; use Modo Supervisor para historial y opciones avanzadas.');
     }
   }
 
