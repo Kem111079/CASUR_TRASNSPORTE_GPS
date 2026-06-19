@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#123C2C" />
+  <meta name="description" content="CASUR Transportes GPS · recorridos, lotes, fincas, paradas, referencias y reportes operativos." />
+  <title>CASUR Transportes GPS</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/favicon.png" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="styles.css?v=5.10.0" />
+  <script>
+    window.CASUR_BOOT = { version: '5.10.0-simulador-ui-reporte', build: 'CASUR_TRANSPORTES_GPS_SIMULADOR_DIRECTO_V2_UI_REPORTE' };
+    function loadCss(url){ return new Promise(function(resolve){ var l=document.createElement('link'); l.rel='stylesheet'; l.href=url; l.onload=resolve; l.onerror=resolve; document.head.appendChild(l); }); }
+    function loadScript(url, timeoutMs){
+      return new Promise(function(resolve,reject){
+        var done=false; var s=document.createElement('script'); s.src=url; s.async=false;
+        var t=setTimeout(function(){ if(!done){ done=true; reject(new Error('timeout '+url)); } }, timeoutMs || 12000);
+        s.onload=function(){ if(!done){ done=true; clearTimeout(t); resolve(); } };
+        s.onerror=function(){ if(!done){ done=true; clearTimeout(t); reject(new Error('error '+url)); } };
+        document.head.appendChild(s);
+      });
+    }
+    async function casurLoadLibraries(){
+      try { await loadCss('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'); }
+      catch(e){ await loadCss('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'); }
+      try { await loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 12000); }
+      catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js', 12000); }
+      try { await loadScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js', 15000); }
+      catch(e1){ try { await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', 15000); } catch(e2){ console.warn('SheetJS no disponible; se activará respaldo XLS HTML.', e2); } }
+      try { await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', 15000); }
+      catch(eP){ try { await loadScript('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js', 15000); } catch(eP2){ console.warn('jsPDF no disponible; el PDF usará respaldo HTML imprimible.', eP2); } }
+      try { await loadScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js', 12000); }
+      catch(eA){ console.warn('autotable no disponible; el PDF usará tablas simples.', eA); }
+      try { await loadScript('app.js?v=5.10.0', 15000); }
+      catch(e){ document.body.classList.add('boot-error'); document.getElementById('bootMsg').innerHTML = 'No se pudo cargar app.js. Revise conexión, caché o GitHub Pages.'; console.error(e); }
+    }
+    document.addEventListener('DOMContentLoaded', casurLoadLibraries);
+  </script>
+</head>
+<body class="mode-driver">
+  <div id="appShell" class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="assets/logo_casur.png" alt="CASUR" onerror="this.style.display='none'" />
+        <div>
+          <div class="eyebrow">CASUR · Transporte</div>
+          <h1>Transportes GPS</h1>
+        </div>
+      </div>
+      <div class="top-actions"><span id="roleTopChip" class="role-top-chip">🚛 Conductor</span><button id="btnMode" class="ghost-btn mode-btn" type="button">Modo Supervisor</button><button id="btnInstall" class="ghost-btn hidden" type="button">Instalar</button></div>
+    </header>
+
+    <div id="bootMsg" class="boot-msg">Cargando mapa y módulos de campo…</div>
+
+    <section id="demoBar" class="demo-bar hidden" aria-label="Simulador de presentación">
+      <div>
+        <b>Modo simulador para presentación</b>
+        <span id="demoStatus">Listo para correr demo sin GPS real.</span>
+      </div>
+      <div class="demo-actions">
+        <button id="btnDemoGuided" type="button">▶ Demo guiada</button>
+        <button id="btnDemoInstant" type="button">⚡ Generar demo</button>
+        <button id="btnDemoFinish" type="button">■ Finalizar demo</button>
+        <button id="btnDemoClear" type="button">Limpiar demo</button>
+      </div>
+    </section>
+
+    <main class="layout">
+      <section class="map-wrap" id="mapWrap">
+        <div id="map" class="map"></div>
+        <div class="map-badges clean" aria-live="polite">
+          <span id="gpsBadge" class="badge danger">GPS detenido</span>
+          <span id="refBadge" class="badge neutral soft-hidden hidden" aria-hidden="true">Sin referencia</span>
+        </div>
+        <div id="compassBox" class="compass-box hidden" aria-label="Referencia norte">
+          <div class="compass-arrow">▲</div>
+          <div>N</div>
+        </div>
+        <div class="map-actions clean-actions">
+          <button id="btnLocate" type="button">📍 Activar GPS</button>
+          <button id="btnFitRoute" type="button">↔ Ver ruta</button>
+        </div>
+      </section>
+
+      <aside id="controlPanel" class="panel collapsed" aria-label="Bitácora de recorrido">
+        <div class="panel-grip" id="panelGrip" title="Abrir o cerrar bitácora"></div>
+        <div class="panel-head compact-head">
+          <div>
+            <div class="eyebrow" id="panelEyebrow">Modo Conductor</div>
+            <h2 id="panelTitle">Registrar recorrido</h2>
+          </div>
+          <button id="btnCollapse" class="icon-btn" type="button" aria-label="Abrir o cerrar bitácora">⌄</button>
+        </div>
+
+        <div id="roleBanner" class="role-banner role-driver">
+          <div id="roleSymbol" class="role-symbol">🚛</div>
+          <div>
+            <b id="roleTitle">Modo Conductor</b>
+            <span id="roleSubtitle">Registrar viaje: datos, GPS, iniciar, finalizar y compartir.</span>
+          </div>
+        </div>
+
+        <section id="supervisorDashboard" class="supervisor-dashboard" aria-label="Resumen de supervisor">
+          <article><span>Recorridos</span><b id="supTripCount">0</b></article>
+          <article><span>Pendientes</span><b id="supPendingCount">0</b></article>
+          <article><span>Km totales</span><b id="supKmTotal">0.00</b></article>
+          <article><span>Último folio</span><b id="supLastFolio">—</b></article>
+        </section>
+
+        <section class="status-grid compact-metrics">
+          <article class="metric-card strong"><span>Distancia</span><b id="mDistance">0.00 km</b></article>
+          <article class="metric-card"><span>Duración</span><b id="mDuration">00:00:00</b></article>
+          <article class="metric-card"><span>Velocidad</span><b id="mSpeed">0.0 km/h</b></article>
+          <article class="metric-card"><span>Paradas</span><b id="mStops">0</b></article>
+        </section>
+
+        <div id="locationLine" class="location-line" aria-live="polite">
+          <span class="location-kicker">Ubicación</span>
+          <b>Sin punto GPS</b>
+          <small>Active GPS para mostrar finca, lote o referencia cercana.</small>
+        </div>
+
+        <section id="driverQuickActions" class="driver-quick-actions driver-only" aria-label="Acciones rápidas del conductor">
+          <button id="btnDriverData" type="button">📝 Datos del viaje</button>
+          <button id="btnDriverSend" type="button">📤 Enviar / Exportar</button>
+        </section>
+
+        <div id="driverSteps" class="driver-steps" aria-hidden="true">
+          <span>1 · Datos</span>
+          <span>2 · Iniciar</span>
+          <span>3 · Finalizar</span>
+          <span>4 · Enviar</span>
+        </div>
+
+        <section class="buttons-card flat main-actions">
+          <button id="btnStart" class="primary-btn" type="button">▶ Iniciar recorrido</button>
+          <button id="btnStop" class="danger-btn hidden" type="button">■ Finalizar recorrido</button>
+          <button id="btnMarkPlace" class="secondary-btn important" type="button">📍 Marcar lugar</button>
+          <button id="btnSaveCheckpoint" class="secondary-btn" type="button">★ Punto clave</button>
+        </section>
+
+        <section id="driverGuide" class="driver-guide" aria-label="Guía rápida del conductor">
+          <b>Uso rápido:</b> toque “Datos del viaje”, registre conductor/placa, inicie, finalice y luego use “Enviar / Exportar”.
+        </section>
+
+        <details id="tripDataBlock" class="control-block driver-main" open>
+          <summary>Datos del viaje</summary>
+          <div class="form-grid compact-fields">
+            <label>Conductor<input id="driver" autocomplete="name" placeholder="Nombre" /></label>
+            <label>Placa<input id="plate" placeholder="Ej. M 000000" /></label>
+            <label>Equipo<input id="equipment" placeholder="Código" /></label>
+            <label>Tipo<select id="tripType"><option>Caña</option><option>Insumos</option><option>Personal</option><option>Maquinaria</option><option>Otro</option></select></label>
+            <label>Origen<input id="origin" placeholder="Finca / patio" /></label>
+            <label>Destino<input id="destination" placeholder="Ingenio / finca" /></label>
+            <label class="span2">Observación inicial<textarea id="initialNote" rows="2" placeholder="Orden, condición de salida, tarea, etc."></textarea></label>
+          </div>
+        </details>
+
+        <details id="summaryBlock" class="control-block driver-main">
+          <summary>Resumen rápido</summary>
+          <p id="autoReading">Active GPS e inicie un recorrido para generar lectura operativa.</p>
+          <div id="contextBox" class="context-box">Referencia actual: sin punto GPS.</div>
+        </details>
+
+        <details id="exportBlock" class="control-block driver-main">
+          <summary>Descargas y compartir</summary>
+          <div class="exports-card flat-exports">
+            <button id="btnPdf" type="button">📄 PDF del recorrido</button>
+            <button id="btnExcel" type="button">📘 Excel recorrido</button>
+            <button id="btnShare" type="button">📲 Compartir por WhatsApp</button>
+            <button id="btnReport" type="button">🖨 Imprimir</button>
+            <button id="btnCard" type="button">🖼 Imagen resumen</button>
+            <button id="btnWhatsapp" type="button">💬 Solo texto</button>
+          </div>
+          <div class="technical-note">“Compartir por WhatsApp” adjunta el PDF y el Excel directamente en teléfonos compatibles. Si el teléfono no permite adjuntar, la app descarga los archivos y abre WhatsApp con el resumen en texto para que los anexe.</div>
+        </details>
+
+        <details id="historyBlock" class="control-block supervisor-only">
+          <summary>Historial de recorridos</summary>
+          <p class="supervisor-help">Toque un recorrido para verlo en el mapa o descargar su evidencia. “Excel consolidado” reúne todos los viajes en un solo archivo.</p>
+          <div class="history-tools">
+            <button id="btnNewTrip" type="button">Nuevo recorrido</button>
+            <button id="btnExportAll" type="button">Excel consolidado</button>
+            <button id="btnClearHistory" type="button">Borrar historial</button>
+          </div>
+          <div id="historyList" class="history-list">Sin recorridos guardados.</div>
+        </details>
+
+        <details id="advancedBlock" class="control-block supervisor-only">
+          <summary>Opciones avanzadas</summary>
+          <div class="advanced-actions">
+            <button id="btnRestartGps" class="secondary-btn" type="button">Reiniciar GPS</button>
+            <button id="btnToggleNorth" class="secondary-btn" type="button">Mostrar norte</button>
+            <button id="btnToggleLots" class="secondary-btn" type="button">Mostrar/Ocultar lotes</button>
+          </div>
+          <div class="form-grid config-mini">
+            <label>Guardar cada seg.<input id="cfgMinSec" type="number" min="2" max="30" step="1" value="4" /></label>
+            <label>o cada metros<input id="cfgMinMeters" type="number" min="3" max="100" step="1" value="8" /></label>
+            <label>Parada desde min.<input id="cfgStopMin" type="number" min="1" max="30" step="1" value="3" /></label>
+            <label>Vel. parada km/h<input id="cfgStopSpeed" type="number" min="0" max="10" step="0.5" value="3" /></label>
+            <label>Precisión baja m<input id="cfgBadAcc" type="number" min="20" max="300" step="5" value="60" /></label>
+            <label>Alerta pausa min.<input id="cfgGapMin" type="number" min="1" max="60" step="1" value="3" /></label>
+          </div>
+          <div class="technical-note">Opciones para supervisión. En modo conductor estas funciones permanecen ocultas para mantener la pantalla simple.</div>
+        </details>
+      </aside>
+    </main>
+
+    <div id="activeBar" class="active-bar hidden">
+      <b>GPS activo</b><span id="activeBarText">Recorrido en proceso</span><button id="btnStopBar" type="button">Finalizar</button>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+</body>
+</html>

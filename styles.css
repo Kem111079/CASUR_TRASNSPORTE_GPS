@@ -385,3 +385,104 @@ body.demo-mode .demo-actions button:nth-child(2){
   .driver-quick-actions button{font-size:12.8px;padding:9px 6px;min-height:38px;}
   .mode-driver .panel.collapsed{max-height:292px!important;}
 }
+
+
+/* === V2 Simulador Directo · UI reporte y bitácora 3 niveles === */
+@media (max-width: 760px){
+  .panel{
+    left:10px!important;
+    right:10px!important;
+    bottom:calc(8px + env(safe-area-inset-bottom))!important;
+    border-radius:24px!important;
+    padding:10px 12px 14px!important;
+    max-height:none!important;
+    transition:height .24s ease, transform .24s ease, box-shadow .24s ease, opacity .24s ease!important;
+  }
+  .panel[data-level="mini"], .panel.collapsed{
+    height:116px!important;
+    overflow:hidden!important;
+    box-shadow:0 -8px 28px rgba(16,37,27,.16)!important;
+    background:rgba(255,255,255,.96)!important;
+  }
+  .panel[data-level="medium"]{
+    height:43svh!important;
+    overflow:auto!important;
+    background:rgba(255,255,255,.98)!important;
+  }
+  .panel[data-level="full"], .panel.full{
+    height:86svh!important;
+    overflow:auto!important;
+    background:#fff!important;
+  }
+  .panel[data-level="mini"] .panel-head,
+  .panel[data-level="mini"] .driver-guide,
+  .panel[data-level="mini"] .control-block,
+  .panel[data-level="mini"] #btnSaveCheckpoint{
+    display:none!important;
+  }
+  .panel[data-level="mini"] .status-grid{
+    grid-template-columns:1fr 1fr 1fr 1fr!important;
+    gap:6px!important;
+    margin-bottom:7px!important;
+  }
+  .panel[data-level="mini"] .metric-card{
+    min-height:44px!important;
+    padding:7px 8px!important;
+    border-radius:14px!important;
+  }
+  .panel[data-level="mini"] .metric-card span{
+    font-size:9.5px!important;
+    margin-bottom:2px!important;
+  }
+  .panel[data-level="mini"] .metric-card b{
+    font-size:14px!important;
+    white-space:nowrap!important;
+  }
+  .panel[data-level="mini"] .location-line{
+    display:none!important;
+  }
+  .panel[data-level="mini"] .driver-quick-actions{
+    display:none!important;
+  }
+  .panel[data-level="mini"] .main-actions{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:6px!important;
+    margin-top:0!important;
+  }
+  .panel[data-level="mini"] .main-actions .primary-btn,
+  .panel[data-level="mini"] .main-actions .danger-btn{
+    grid-column:1 / -1!important;
+    min-height:40px!important;
+    padding:9px 10px!important;
+    font-size:14px!important;
+    border-radius:14px!important;
+  }
+  .panel[data-level="mini"] #btnMarkPlace{
+    min-height:34px!important;
+    padding:8px!important;
+    font-size:12px!important;
+  }
+  .panel[data-level="medium"] .control-block:not(#tripDataBlock):not(#summaryBlock):not(#exportBlock){
+    display:none;
+  }
+  .demo-mode .panel[data-level="mini"]{
+    opacity:.94;
+  }
+  body.panel-open .leaflet-control-zoom{
+    opacity:.16!important;
+    pointer-events:auto;
+  }
+  body[data-panel-level="mini"] .leaflet-control-zoom{
+    opacity:.72!important;
+  }
+  body[data-panel-level="full"] .map-actions{
+    opacity:.18;
+  }
+}
+@media (min-width: 761px){
+  .panel{max-height:calc(100svh - 84px)!important;}
+  .panel[data-level="full"], .panel.full{height:calc(100svh - 84px)!important;}
+  .panel[data-level="medium"]{height:calc(100svh - 84px)!important;}
+}
+.route-box{border:1px solid #d8e3dc;border-radius:16px;background:#eef6ef;padding:18px;color:#6A756E;font-weight:700;text-align:center}

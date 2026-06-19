@@ -4,8 +4,10 @@
 (function(){
   'use strict';
 
-  const APP_VERSION = (window.CASUR_BOOT && window.CASUR_BOOT.version) || '5.8.0-conductor-envio';
-  const DEMO_MODE = new URLSearchParams(window.location.search).get('demo') === '1' || /(^|#)demo(=1)?/i.test(window.location.hash || '');
+  const APP_VERSION = (window.CASUR_BOOT && window.CASUR_BOOT.version) || '5.10.0-simulador-ui-reporte';
+  const URL_PARAMS = new URLSearchParams(window.location.search);
+  const DEMO_MODE = URL_PARAMS.get('demo') === '1' || /(^|#)demo(=1)?/i.test(window.location.hash || '');
+  const DEMO_AUTOSTART = (function(){ const v=(URL_PARAMS.get('autostart')||'').toLowerCase(); return (v==='guided' || v==='instant') ? v : ''; })();
   const STORAGE_ACTIVE = 'casur_transportes_active_trip_v4';
   const STORAGE_HISTORY = 'casur_transportes_history_v4';
   const STORAGE_CFG = 'casur_transportes_cfg_v4';
@@ -170,17 +172,28 @@
     node.className = `badge ${kind || 'neutral'}${hidden}`;
   }
   function on(node, ev, fn, opts){ if(node) node.addEventListener(ev, fn, opts || false); }
-  function setPanelCollapsed(collapsed){
+  function setPanelLevel(level){
     if(!el.panel) return;
-    el.panel.classList.toggle('collapsed', !!collapsed);
-    el.panel.classList.toggle('expanded', !collapsed);
-    document.body.classList.toggle('panel-open', !collapsed);
-    if(el.btnCollapse) el.btnCollapse.textContent = collapsed ? '⌃' : '⌄';
+    level = ['mini','medium','full'].includes(level) ? level : 'mini';
+    el.panel.dataset.level = level;
+    el.panel.classList.toggle('collapsed', level === 'mini');
+    el.panel.classList.toggle('expanded', level !== 'mini');
+    el.panel.classList.toggle('full', level === 'full');
+    document.body.classList.toggle('panel-open', level !== 'mini');
+    document.body.dataset.panelLevel = level;
+    if(el.btnCollapse) el.btnCollapse.textContent = level === 'mini' ? '⌃' : (level === 'medium' ? '⌄' : '–');
     if(state.map) setTimeout(()=>state.map.invalidateSize(), 180);
   }
-  function collapsePanel(){ setPanelCollapsed(true); }
-  function expandPanel(){ setPanelCollapsed(false); }
-  function togglePanel(){ setPanelCollapsed(!el.panel.classList.contains('collapsed')); }
+  function setPanelCollapsed(collapsed){ setPanelLevel(collapsed ? 'mini' : 'medium'); }
+  function collapsePanel(){ setPanelLevel('mini'); }
+  function expandPanel(){ setPanelLevel('medium'); }
+  function fullPanel(){ setPanelLevel('full'); }
+  function togglePanel(){
+    const lvl = (el.panel && el.panel.dataset.level) || (el.panel && el.panel.classList.contains('collapsed') ? 'mini' : 'medium');
+    if(lvl === 'mini') expandPanel();
+    else if(lvl === 'medium') fullPanel();
+    else collapsePanel();
+  }
   function openDriverBlocks(){
     // En modo conductor, lo esencial debe quedar accesible siempre: captura de datos y envío/exportación.
     if(el.tripDataBlock) el.tripDataBlock.open = true;
@@ -409,6 +422,96 @@
     return Array.from(map.values()).sort((a,b)=>b.points-a.points);
   }
 
+  function reportSamplePoints(pts, maxPts){
+    pts = Array.isArray(pts) ? pts : [];
+    maxPts = maxPts || 180;
+    if(pts.length <= maxPts) return pts;
+    const keep = new Set([0, pts.length-1]);
+    const step = Math.max(1, Math.floor(pts.length / maxPts));
+    for(let i=0;i<pts.length;i+=step) keep.add(i);
+    // Conservar cambios fuertes de rumbo para que el croquis no pierda forma.
+    for(let i=2;i<pts.length;i++){
+      const h1 = Number(pts[i-1].heading || 0), h2 = Number(pts[i].heading || 0);
+      const diff = Math.abs(((h2-h1+540)%360)-180);
+      if(diff >= 35) keep.add(i);
+    }
+    return Array.from(keep).sort((a,b)=>a-b).slice(0, maxPts).map(i=>pts[i]);
+  }
+  function placeKind(p){
+    const t = String((p && (p.tipoReferencia || p.tipo || '')) || '').toLowerCase();
+    const l = String((p && (p.referencia || p.lugar || '')) || '').toLowerCase();
+    if(/b[aá]scula|patio|ingenio|descarga|pesaje/.test(t+' '+l)) return 'Patio/Báscula/Ingenio';
+    if(/carretera|camino|ruta|v[ií]a|retorno|cruce/.test(t+' '+l)) return 'Carretera / vía';
+    if(/sin referencia/.test(t+' '+l)) return 'Sin referencia';
+    if(/finca|lote|suerte|cerca de/.test(t+' '+l)) return 'Finca/Lote';
+    return 'Referencia operativa';
+  }
+  function segmentSummary(trip, opts){
+    opts = opts || {};
+    const pts = trip && trip.points || [];
+    if(!pts.length) return [];
+    const maxSegments = opts.maxSegments || 8;
+    const minPoints = opts.minPoints || 4;
+    const minDistanceM = opts.minDistanceM || 120;
+    const segs = [];
+    let current = null;
+    function labelFor(p){
+      const lugar = p.referencia || (p.finca || p.lote ? `${p.finca || 'Sin finca'} · Lote ${p.lote || 'Sin lote'}` : 'Sin referencia');
+      const tipo = p.tipoReferencia || (p.finca || p.lote ? 'Lote/Finca' : 'Sin referencia');
+      return { lugar, tipo, kind: placeKind({referencia:lugar,tipoReferencia:tipo}), finca:p.finca||'', lote:p.lote||'' };
+    }
+    function pushCurrent(){
+      if(!current) return;
+      const dur = Math.max(0, new Date(current.last)-new Date(current.first));
+      current.durationMs = dur;
+      current.km = round(current.distanceM/1000,2);
+      current.points = current.points || 0;
+      segs.push(current);
+      current = null;
+    }
+    pts.forEach((p,i)=>{
+      const lab = labelFor(p);
+      const key = lab.kind + '|' + lab.lugar;
+      const dist = i>0 ? haversine(pts[i-1],p) : 0;
+      if(!current){
+        current = Object.assign({ key, first:p.timestamp, last:p.timestamp, points:1, distanceM:0 }, lab);
+      } else if(current.key === key || (current.kind === lab.kind && current.points < minPoints && current.distanceM < minDistanceM)){
+        current.last = p.timestamp; current.points += 1; current.distanceM += dist;
+        if(current.lugar === 'Sin referencia' && lab.lugar !== 'Sin referencia') current.lugar = lab.lugar;
+      } else {
+        pushCurrent();
+        current = Object.assign({ key, first:p.timestamp, last:p.timestamp, points:1, distanceM:dist }, lab);
+      }
+    });
+    pushCurrent();
+
+    // Compactar aún más si el viaje fue largo: unir segmentos consecutivos del mismo tipo.
+    const compact = [];
+    segs.forEach(s=>{
+      const prev = compact[compact.length-1];
+      if(prev && prev.kind === s.kind && compact.length >= maxSegments-1){
+        prev.last = s.last;
+        prev.points += s.points;
+        prev.distanceM += s.distanceM;
+        prev.durationMs = Math.max(0, new Date(prev.last)-new Date(prev.first));
+        prev.km = round(prev.distanceM/1000,2);
+        if(!prev.lugaresSecundarios) prev.lugaresSecundarios = [];
+        if(s.lugar && s.lugar !== prev.lugar && !prev.lugaresSecundarios.includes(s.lugar)) prev.lugaresSecundarios.push(s.lugar);
+      } else {
+        compact.push(Object.assign({}, s));
+      }
+    });
+    return compact.slice(0, maxSegments).map((s,i)=>Object.assign({ tramo:i+1 }, s));
+  }
+  function topPlacesForReport(trip, limit){
+    limit = limit || 5;
+    const places = routePlaceSummary(trip).filter(x => x.tipo !== 'Sin referencia');
+    const total = places.length;
+    const top = places.slice(0, limit);
+    const extra = Math.max(0, total - top.length);
+    return { top, total, extra };
+  }
+
   // -------------------- Mapa --------------------
   async function initMap(){
     if(!window.L){ throw new Error('Leaflet no está disponible'); }
@@ -430,7 +533,7 @@
   }
   async function loadLots(){
     try{
-      const res = await fetch('data/poligonos_casur.geojson?v=5.7.0', { cache:'no-store' });
+      const res = await fetch('data/poligonos_casur.geojson?v=5.10.0', { cache:'no-store' });
       if(!res.ok) throw new Error('GeoJSON no disponible');
       state.lotsGeojson = await res.json();
       state.lotFeatures = (state.lotsGeojson.features || []).filter(f => f.geometry && ['Polygon','MultiPolygon'].includes(f.geometry.type));
@@ -454,7 +557,7 @@
     const local = loadLocalReferences();
     let defaults = [];
     try{
-      const res = await fetch('data/referencias_operativas.json?v=5.7.0', { cache:'no-store' });
+      const res = await fetch('data/referencias_operativas.json?v=5.10.0', { cache:'no-store' });
       if(res.ok){ const json = await res.json(); defaults = Array.isArray(json) ? json : (json.referencias || []); }
     }catch(e){ console.warn('Referencias operativas no cargadas', e); }
     const all = [];
@@ -1041,6 +1144,7 @@
     const fields = trip.fields || {};
     const lotRows = routeLotSummary(trip);
     const placeRows = routePlaceSummary(trip);
+    const tramoRows = segmentSummary(trip,{maxSegments:12});
     const longStops = (trip.stops||[]).filter(s=>s.durationMs>=600000).length;
     const sinRef = placeRows.find(x=>x.tipo === 'Sin referencia');
     const mainPlaces = placeRows.filter(x=>x.tipo !== 'Sin referencia').slice(0,6).map(x=>x.lugar).join('; ');
@@ -1086,6 +1190,9 @@
     const stops = [['#','Inicio','Fin','Duración','Min detenido','Lugar / referencia','Tipo lugar','Finca','Lote','Lat','Lng','Alerta','Observación']]
       .concat((trip.stops||[]).map((s,i)=>[i+1,localStamp(s.start),localStamp(s.end),fmtDurationText(s.durationMs),round(s.durationMs/60000,1),s.referencia || contextText(s),s.tipoReferencia || (s.finca||s.lote?'Lote/Finca':'Sin referencia'),s.finca||'',s.lote||'',s.lat,s.lng,s.durationMs>=600000?'Parada larga':'',s.note||'']));
     if(stops.length===1) stops.push(['','','','','','Sin paradas detectadas','','','','','','','']);
+    const tramos = [['#','Tipo tramo','Lugar principal','Inicio','Fin','Duración','Km aprox.','Puntos GPS','Finca','Lote','Observación']]
+      .concat(tramoRows.map(r=>[r.tramo,r.kind,r.lugar,localStamp(r.first),localStamp(r.last),fmtDurationText(r.durationMs),round(r.distanceM/1000,3),r.points,r.finca||'',r.lote||'',r.kind==='Sin referencia'?'Nombrar lugar si es recurrente o estratégico':'Tramo agrupado para reporte ejecutivo']));
+    if(tramos.length===1) tramos.push(['','','Sin tramos suficientes','','','','','','','','']);
     const lugares = [['#','Lugar / referencia','Tipo','Finca','Lote','Zona','Primer paso','Último paso','Puntos GPS','Km aprox.','Lectura']]
       .concat(placeRows.map((r,i)=>[i+1,r.lugar,r.tipo,r.finca,r.lote,r.zona,localStamp(r.first),localStamp(r.last),r.points,round(r.distanceM/1000,3),r.tipo==='Sin referencia'?'Nombrar carretera/lugar si es recurrente':'Referencia útil para revisión']));
     const gps = [['#','Fecha/hora','Lat','Lng','Precisión m','Velocidad km/h','Rumbo','Segmento m','Km acumulados','Lugar / referencia','Tipo referencia','Finca','Lote','Calidad GPS']]
@@ -1095,7 +1202,7 @@
     const referencias = [['Nombre','Tipo','Lat','Lng','Observación','Fuente','Creada']]
       .concat((state.references||[]).map(r=>[r.nombre||'',r.tipo||'',r.lat,r.lng,r.observacion||'',r.source||'',r.createdAt?localStamp(r.createdAt):'']));
     if(referencias.length===1) referencias.push(['Sin referencias manuales','','','','Use “Marcar lugar” en la app para nombrar carreteras, entradas, talleres, básculas o comunidades.','','']);
-    return { 'Resumen':resumen, 'Paradas':stops, 'Lugares':lugares, 'Detalle GPS':gps, 'Eventos':eventos, 'Referencias':referencias };
+    return { 'Resumen':resumen, 'Tramos':tramos, 'Paradas':stops, 'Lugares':lugares, 'Detalle GPS':gps, 'Eventos':eventos, 'Referencias':referencias };
   }
   function styleWorksheet(ws, name, rows){
     if(!ws || !ws['!ref']) return;
@@ -1148,19 +1255,23 @@
   function exportReport(trip){
     trip = trip || currentOrLatestTrip(); if(!trip) return;
     const m = trip.metrics || computeMetrics(trip);
-    const rowsStops = (trip.stops||[]).map((s,i)=>`<tr><td>${i+1}</td><td>${localStamp(s.start)}</td><td>${fmtDurationText(s.durationMs)}</td><td>${escapeHtml(s.referencia || contextText(s))}</td><td>${escapeHtml(s.tipoReferencia||'')}</td><td>${s.lat}, ${s.lng}</td></tr>`).join('') || '<tr><td colspan="6">Sin paradas detectadas.</td></tr>';
-    const lots = routePlaceSummary(trip).slice(0,30).map((r,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(r.lugar)}</td><td>${escapeHtml(r.tipo)}</td><td>${escapeHtml(r.finca||'')}</td><td>${escapeHtml(r.lote||'')}</td><td>${r.points}</td><td>${round(r.distanceM/1000,2)}</td></tr>`).join('') || '<tr><td colspan="7">Sin lugares referenciados.</td></tr>';
-    const pts = (trip.points||[]).filter((_,i)=>i===0 || i===(trip.points.length-1) || i % Math.max(1,Math.floor(trip.points.length/20))===0).map((p,i)=>`<tr><td>${i+1}</td><td>${localStamp(p.timestamp)}</td><td>${p.lat}</td><td>${p.lng}</td><td>${p.accuracy} m</td><td>${fmtKmh(p.speedKmh)}</td><td>${escapeHtml(p.referencia || contextText(p))}</td><td>${escapeHtml(p.tipoReferencia||'')}</td></tr>`).join('');
+    const stopRows = (trip.stops||[])
+      .sort((a,b)=>(b.durationMs||0)-(a.durationMs||0))
+      .slice(0,5)
+      .map((s,i)=>`<tr><td>${i+1}</td><td>${localStamp(s.start)}</td><td>${fmtDurationText(s.durationMs)}</td><td>${escapeHtml(s.referencia || contextText(s))}</td><td>${escapeHtml(s.tipoReferencia||'')}</td></tr>`).join('') || '<tr><td colspan="5">Sin paradas relevantes detectadas.</td></tr>';
+    const segRows = segmentSummary(trip,{maxSegments:6}).map(s=>`<tr><td>${s.tramo}</td><td>${escapeHtml(s.kind)}</td><td>${escapeHtml(s.lugar)}</td><td>${localStamp(s.first)} - ${localStamp(s.last)}</td><td>${fmtDurationText(s.durationMs)}</td><td>${round(s.distanceM/1000,2)}</td></tr>`).join('') || '<tr><td colspan="6">Sin tramos suficientes.</td></tr>';
+    const placeInfo = topPlacesForReport(trip,5);
+    const placeRows = placeInfo.top.map((r,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(r.lugar)}</td><td>${escapeHtml(r.tipo)}</td><td>${r.points}</td><td>${round(r.distanceM/1000,2)}</td></tr>`).join('') || '<tr><td colspan="5">Sin lugares referenciados.</td></tr>';
     const mapNote = routeMapSvg(trip);
     const logoTag = state.logoDataUrl ? `<img class="logo" src="${state.logoDataUrl}" alt="CASUR" />` : '';
     const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte de Recorrido CASUR</title><style>${reportCss()}</style></head><body>
-      <header><div class="head-left">${logoTag}<div><span>CASUR · Control Operativo</span><h1>Reporte de Recorrido · CASUR Transportes GPS</h1></div></div><div class="stamp">Folio ${escapeHtml(trip.folio||'s/f')}<br>Generado<br>${localStamp()}</div></header>
+      <header><div class="head-left">${logoTag}<div><span>CASUR · Control Operativo</span><h1>Reporte Ejecutivo de Recorrido</h1></div></div><div class="stamp">Folio ${escapeHtml(trip.folio||'s/f')}<br>Generado<br>${localStamp()}</div></header>
       <section class="hero"><div><h2>${escapeHtml(trip.fields?.conductor||'Sin conductor')}</h2><p>${escapeHtml(trip.fields?.placa||'Sin placa')} · ${escapeHtml(trip.fields?.equipo||'Sin equipo')} · ${escapeHtml(trip.fields?.tipoViaje||'')}</p><p>${escapeHtml(trip.fields?.origen||'Origen no declarado')} → ${escapeHtml(trip.fields?.destino||'Destino no declarado')}</p></div><div class="reading">${escapeHtml(autoReading(trip,m))}</div></section>
       <section class="kpis"><article><span>Distancia</span><b>${fmtKm(m.distanceM)}</b></article><article><span>Duración</span><b>${fmtDurationText(m.durationMs)}</b></article><article><span>Promedio</span><b>${fmtKmh(m.avgSpeedKmh)}</b></article><article><span>Paradas</span><b>${m.stops}</b></article><article><span>Detenido</span><b>${fmtDurationText(m.stopMs)}</b></article><article><span>GPS</span><b>${m.gpsQuality}</b></article></section>
-      <section class="map-section"><h3>Trayectoria del recorrido</h3>${mapNote}<p class="muted">La vista representa la trayectoria GPS con inicio, fin y orientación aproximada. Para revisión completa en campo, abrir la PWA y cargar el recorrido desde historial.</p></section>
-      <section><h3>Paradas detectadas</h3><table><thead><tr><th>#</th><th>Inicio</th><th>Duración</th><th>Lugar / referencia</th><th>Tipo</th><th>Ubicación</th></tr></thead><tbody>${rowsStops}</tbody></table></section>
-      <section><h3>Lugares del recorrido</h3><table><thead><tr><th>#</th><th>Lugar / referencia</th><th>Tipo</th><th>Finca</th><th>Lote</th><th>Puntos</th><th>Km aprox.</th></tr></thead><tbody>${lots}</tbody></table></section>
-      <section><h3>Puntos principales GPS</h3><table><thead><tr><th>#</th><th>Hora</th><th>Lat</th><th>Lng</th><th>Precisión</th><th>Vel.</th><th>Lugar / referencia</th><th>Tipo</th></tr></thead><tbody>${pts}</tbody></table></section>
+      <section class="map-section"><h3>Mapa operativo del recorrido</h3>${mapNote}<p class="muted">Mapa vectorial de respaldo con fondo operativo CASUR, ruta simplificada, dirección, inicio, fin y paradas. El detalle GPS completo queda en Excel.</p></section>
+      <section><h3>Tramos del recorrido</h3><table><thead><tr><th>#</th><th>Tipo</th><th>Lugar principal</th><th>Horario</th><th>Duración</th><th>Km</th></tr></thead><tbody>${segRows}</tbody></table></section>
+      <section><h3>Paradas relevantes</h3><table><thead><tr><th>#</th><th>Inicio</th><th>Duración</th><th>Lugar / referencia</th><th>Tipo</th></tr></thead><tbody>${stopRows}</tbody></table></section>
+      <section><h3>Lugares principales</h3><table><thead><tr><th>#</th><th>Lugar / referencia</th><th>Tipo</th><th>Puntos</th><th>Km aprox.</th></tr></thead><tbody>${placeRows}</tbody></table><p class="muted">${placeInfo.extra ? `Se compactaron ${placeInfo.extra} referencias adicionales para mantener el reporte ejecutivo. Ver Excel para detalle técnico.` : 'Reporte compacto: sin referencias adicionales omitidas.'}</p></section>
       <section class="conclusion"><b>Lectura operativa:</b> ${escapeHtml(operationalRecommendation(trip,m))}</section>
       <footer>CASUR Transportes GPS · ${APP_VERSION} · Reporte imprimible desde navegador</footer>
       <script>window.onload=function(){ setTimeout(function(){ window.print(); }, 700); }<\/script>
@@ -1169,20 +1280,33 @@
     if(win){ win.document.open(); win.document.write(html); win.document.close(); }
     else { downloadBlob(html, exportFilename(trip,'html'), 'text/html;charset=utf-8'); toast('Bloqueador de ventanas activo. Se descargó el HTML.'); }
   }
+
   function routeMapSvg(trip){
-    const pts = trip.points || [];
+    const pts0 = trip.points || [];
+    const pts = reportSamplePoints(pts0, 180);
     if(pts.length < 2) return '<div class="route-box">Sin trayectoria suficiente.</div>';
     const minLat = Math.min(...pts.map(p=>p.lat)), maxLat = Math.max(...pts.map(p=>p.lat)), minLng = Math.min(...pts.map(p=>p.lng)), maxLng = Math.max(...pts.map(p=>p.lng));
-    const w=900,h=430,pad=35; const dx = maxLng-minLng || .0001, dy = maxLat-minLat || .0001;
+    const w=900,h=420,pad=44; const dx = maxLng-minLng || .0001, dy = maxLat-minLat || .0001;
     const xy = p => [pad + ((p.lng-minLng)/dx)*(w-pad*2), h-pad - ((p.lat-minLat)/dy)*(h-pad*2)];
     const d = pts.map((p,i)=>{ const [x,y]=xy(p); return `${i?'L':'M'}${x.toFixed(1)},${y.toFixed(1)}`; }).join(' ');
     const s=xy(pts[0]), e=xy(pts[pts.length-1]);
+    const road1 = `M${pad},${h-pad-8} C${w*.22},${h*.70} ${w*.35},${h*.42} ${w-pad},${pad+20}`;
+    const road2 = `M${pad+28},${pad+16} C${w*.28},${h*.30} ${w*.52},${h*.70} ${w-pad-30},${h-pad-18}`;
+    const grid = Array.from({length:8},(_,i)=>`<line x1="${pad+i*(w-pad*2)/7}" y1="${pad}" x2="${pad+i*(w-pad*2)/7}" y2="${h-pad}" />`).join('') +
+      Array.from({length:5},(_,i)=>`<line x1="${pad}" y1="${pad+i*(h-pad*2)/4}" x2="${w-pad}" y2="${pad+i*(h-pad*2)/4}" />`).join('');
     const arrows = [];
-    for(let i=1;i<pts.length;i+=Math.max(1,Math.floor(pts.length/8))){ const [x,y]=xy(pts[i]); const brg=pts[i].heading || bearing(pts[i-1],pts[i]) || 0; arrows.push(`<text x="${x}" y="${y}" transform="rotate(${brg} ${x} ${y})" font-size="20" text-anchor="middle" dominant-baseline="middle">➤</text>`); }
-    const stops = (trip.stops||[]).map((st,i)=>{ const [x,y]=xy(st); return `<circle cx="${x}" cy="${y}" r="9" fill="#B42318"/><text x="${x}" y="${y+4}" font-size="9" fill="#fff" text-anchor="middle">${i+1}</text>`; }).join('');
-    return `<svg viewBox="0 0 ${w} ${h}" class="route-svg"><rect x="1" y="1" width="${w-2}" height="${h-2}" rx="18" fill="#eef6ef" stroke="#d8e3dc"/><path d="${d}" fill="none" stroke="#F2B705" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#123C2C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${arrows.join('')}<circle cx="${s[0]}" cy="${s[1]}" r="11" fill="#177245"/><text x="${s[0]}" y="${s[1]+4}" font-size="10" fill="#fff" text-anchor="middle">I</text><circle cx="${e[0]}" cy="${e[1]}" r="11" fill="#B42318"/><text x="${e[0]}" y="${e[1]+4}" font-size="10" fill="#fff" text-anchor="middle">F</text>${stops}<text x="${w-25}" y="30" font-size="15" fill="#B42318" text-anchor="middle">▲</text><text x="${w-25}" y="48" font-size="12" fill="#123C2C" text-anchor="middle">N</text></svg>`;
+    for(let i=1;i<pts.length;i+=Math.max(1,Math.floor(pts.length/8))){ const [x,y]=xy(pts[i]); const brg=pts[i].heading || bearing(pts[i-1],pts[i]) || 0; arrows.push(`<text x="${x}" y="${y}" transform="rotate(${brg} ${x} ${y})" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="#123C2C">➤</text>`); }
+    const stops = (trip.stops||[]).slice(0,8).map((st,i)=>{ const [x,y]=xy(st); return `<circle cx="${x}" cy="${y}" r="9" fill="#B42318"/><text x="${x}" y="${y+4}" font-size="9" fill="#fff" text-anchor="middle">${i+1}</text>`; }).join('');
+    const labels = segmentSummary(trip,{maxSegments:4}).map(sg=>{
+      const ref = pts0.find(p => (p.referencia || '').includes((sg.lugar||'').split(' · ')[0])) || pts[Math.floor(pts.length/2)];
+      const [x,y]=xy(ref);
+      const txt = sg.kind === 'Finca/Lote' ? (sg.lugar||'Finca/Lote').replace('Cerca de ','').slice(0,26) : sg.kind;
+      return `<g><rect x="${Math.max(10,x-70)}" y="${Math.max(12,y-24)}" width="140" height="21" rx="10" fill="rgba(255,255,255,.86)" stroke="#d8e3dc"/><text x="${x}" y="${Math.max(28,y-9)}" font-size="10" text-anchor="middle" fill="#123C2C" font-weight="700">${escapeHtml(txt)}</text></g>`;
+    }).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" class="route-svg"><defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#e9f2ea"/><stop offset="100%" stop-color="#f7fbf7"/></linearGradient></defs><rect x="1" y="1" width="${w-2}" height="${h-2}" rx="18" fill="url(#bg)" stroke="#d8e3dc"/><g class="grid">${grid}</g><path d="${road1}" fill="none" stroke="#cfd9d2" stroke-width="20" stroke-linecap="round"/><path d="${road1}" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/><path d="${road2}" fill="none" stroke="#d9e3dc" stroke-width="14" stroke-linecap="round" stroke-dasharray="16 12"/><g opacity=".30"><ellipse cx="${w*.18}" cy="${h*.22}" rx="90" ry="44" fill="#b7d7bd"/><ellipse cx="${w*.72}" cy="${h*.75}" rx="116" ry="52" fill="#b7d7bd"/><ellipse cx="${w*.78}" cy="${h*.25}" rx="72" ry="36" fill="#c4dfc8"/></g><path d="${d}" fill="none" stroke="#F2B705" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#123C2C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${arrows.join('')}${labels}<circle cx="${s[0]}" cy="${s[1]}" r="12" fill="#177245"/><text x="${s[0]}" y="${s[1]+4}" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">I</text><circle cx="${e[0]}" cy="${e[1]}" r="12" fill="#B42318"/><text x="${e[0]}" y="${e[1]+4}" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">F</text>${stops}<text x="${w-25}" y="30" font-size="15" fill="#B42318" text-anchor="middle">▲</text><text x="${w-25}" y="48" font-size="12" fill="#123C2C" text-anchor="middle">N</text><text x="20" y="${h-18}" font-size="11" fill="#6A756E">Mapa operativo CASUR · Ruta simplificada para reporte ejecutivo</text></svg>`;
   }
-  function reportCss(){ return `body{font-family:Arial, sans-serif;color:#17251E;margin:28px;background:#fff}header{display:flex;justify-content:space-between;gap:20px;border-bottom:4px solid #123C2C;padding-bottom:14px;margin-bottom:18px}.head-left{display:flex;align-items:center;gap:14px}.head-left .logo{height:46px;width:auto}header span{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#1F6B46;font-weight:bold}h1{font-size:24px;color:#123C2C;margin:4px 0 0}.stamp{text-align:right;color:#6A756E;font-weight:bold}.hero{display:grid;grid-template-columns:1fr 1.25fr;gap:16px;background:#EAF5EE;border:1px solid #DDE8E1;border-radius:16px;padding:16px;margin-bottom:16px}.hero h2{margin:0;color:#123C2C}.hero p{margin:6px 0}.reading{background:#fff;border-left:6px solid #F2B705;border-radius:12px;padding:12px;line-height:1.45}.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}.kpis article{background:#fff;border:1px solid #DDE8E1;border-radius:14px;padding:12px}.kpis span{display:block;color:#6A756E;font-size:12px;font-weight:bold}.kpis b{font-size:18px;color:#123C2C}.map-section,.conclusion,section{margin-bottom:18px}h3{color:#123C2C;margin:12px 0 8px}.route-svg{width:100%;height:auto;border-radius:16px;display:block}.muted{color:#6A756E;font-size:12px}table{border-collapse:collapse;width:100%;font-size:12px}th{background:#123C2C;color:#fff;text-align:left}td,th{border:1px solid #DDE8E1;padding:7px 8px}tr:nth-child(even) td{background:#F7FAF8}.conclusion{border-radius:14px;background:#123C2C;color:#fff;padding:14px;line-height:1.45}footer{border-top:1px solid #DDE8E1;color:#6A756E;font-size:11px;padding-top:10px}@page{size:letter;margin:16mm}@media print{body{margin:0}.kpis{grid-template-columns:repeat(3,1fr)}header{break-after:avoid}section{break-inside:avoid}}`; }
+
+  function reportCss(){ return `body{font-family:Arial, sans-serif;color:#17251E;margin:24px;background:#fff}header{display:flex;justify-content:space-between;gap:20px;border-bottom:4px solid #123C2C;padding-bottom:14px;margin-bottom:16px}.head-left{display:flex;align-items:center;gap:14px}.head-left .logo{height:44px;width:auto}header span{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#1F6B46;font-weight:bold}h1{font-size:22px;color:#123C2C;margin:4px 0 0}.stamp{text-align:right;color:#6A756E;font-weight:bold;font-size:12px}.hero{display:grid;grid-template-columns:1fr 1.15fr;gap:14px;background:#EAF5EE;border:1px solid #DDE8E1;border-radius:16px;padding:14px;margin-bottom:14px}.hero h2{margin:0;color:#123C2C}.hero p{margin:5px 0}.reading{background:#fff;border-left:6px solid #F2B705;border-radius:12px;padding:11px;line-height:1.4;font-size:13px}.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px}.kpis article{background:#fff;border:1px solid #DDE8E1;border-radius:12px;padding:10px}.kpis span{display:block;color:#6A756E;font-size:11px;font-weight:bold}.kpis b{font-size:16px;color:#123C2C}.map-section,.conclusion,section{margin-bottom:14px}h3{color:#123C2C;margin:10px 0 7px;font-size:15px}.route-svg{width:100%;height:auto;border-radius:16px;display:block}.route-svg .grid line{stroke:#dfe9e2;stroke-width:1}.muted{color:#6A756E;font-size:11px;margin:5px 0}table{border-collapse:collapse;width:100%;font-size:10.8px}th{background:#123C2C;color:#fff;text-align:left}td,th{border:1px solid #DDE8E1;padding:5px 6px}tr:nth-child(even) td{background:#F7FAF8}.conclusion{border-radius:14px;background:#123C2C;color:#fff;padding:12px;line-height:1.38;font-size:12px}footer{border-top:1px solid #DDE8E1;color:#6A756E;font-size:10px;padding-top:10px}@page{size:letter;margin:14mm}@media print{body{margin:0}.kpis{grid-template-columns:repeat(6,1fr)}header{break-after:avoid}section{break-inside:avoid}.map-section{break-inside:avoid}}`; }
   // -------------------- PDF de recorrido (con logo y encabezado) --------------------
   function projectPoints(pts, x, y, w, h, pad){
     const lats = pts.map(p=>p.lat), lngs = pts.map(p=>p.lng);
@@ -1212,7 +1336,16 @@
     doc.setFillColor(C.pale[0],C.pale[1],C.pale[2]);
     doc.setDrawColor(C.line[0],C.line[1],C.line[2]);
     doc.roundedRect(x, y, w, h, 10, 10, 'FD');
-    const pts = (trip.points||[]);
+    // Fondo operativo: grilla, caminos y áreas agrícolas estilizadas. Sirve como respaldo cuando no se puede capturar mapa base por CORS.
+    doc.setDrawColor(223,233,226); doc.setLineWidth(.35);
+    for(let gx=x+24; gx<x+w-24; gx+=42) doc.line(gx, y+18, gx, y+h-18);
+    for(let gy=y+24; gy<y+h-24; gy+=34) doc.line(x+18, gy, x+w-18, gy);
+    doc.setDrawColor(207,217,210); doc.setLineWidth(10); doc.line(x+28,y+h-36,x+w-36,y+34);
+    doc.setDrawColor(255,255,255); doc.setLineWidth(4); doc.line(x+28,y+h-36,x+w-36,y+34);
+    doc.setDrawColor(217,227,220); doc.setLineWidth(6); doc.line(x+45,y+38,x+w-48,y+h-42);
+    doc.setFillColor(197,223,201); doc.ellipse(x+w*.22, y+h*.25, 54, 20, 'F');
+    doc.ellipse(x+w*.75, y+h*.76, 70, 24, 'F');
+    const pts = reportSamplePoints((trip.points||[]), 220);
     if(pts.length < 2){
       doc.setTextColor(106,117,110); doc.setFont('helvetica','normal'); doc.setFontSize(11);
       doc.text('Sin trayectoria GPS suficiente para dibujar la ruta.', x + w/2, y + h/2, { align:'center' });
@@ -1339,27 +1472,38 @@
     const altStyles = { fillColor:[247,250,248] };
     const hasAuto = typeof doc.autoTable === 'function';
 
-    const stopRows = (trip.stops||[]).map((s,i)=>[i+1, localStamp(s.start), fmtDurationText(s.durationMs), (s.referencia||contextText(s)||'Sin referencia'), s.tipoReferencia||'', `${round(s.lat,5)}, ${round(s.lng,5)}`]);
-    const placeRows = routePlaceSummary(trip).slice(0,18).map((r,i)=>[i+1, r.lugar, r.tipo, r.finca||'', r.lote||'', r.points, round(r.distanceM/1000,2)]);
+    const stopRows = (trip.stops||[]).sort((a,b)=>(b.durationMs||0)-(a.durationMs||0)).slice(0,5).map((s,i)=>[i+1, localStamp(s.start), fmtDurationText(s.durationMs), (s.referencia||contextText(s)||'Sin referencia'), s.tipoReferencia||'']);
+    const segmentRows = segmentSummary(trip,{maxSegments:6}).map(s=>[s.tramo, s.kind, s.lugar, `${localStamp(s.first)} - ${localStamp(s.last)}`, fmtDurationText(s.durationMs), round(s.distanceM/1000,2)]);
+    const placePack = topPlacesForReport(trip,5);
+    const placeRows = placePack.top.map((r,i)=>[i+1, r.lugar, r.tipo, r.points, round(r.distanceM/1000,2)]);
 
     if(hasAuto){
       doc.autoTable({
         startY: cy, margin:{left:M,right:M},
-        head:[['#','Inicio','Duración','Lugar / referencia','Tipo','Ubicación']],
-        body: stopRows.length ? stopRows : [['—','—','—','Sin paradas detectadas','—','—']],
+        head:[['#','Tipo','Lugar principal','Horario','Duración','Km']],
+        body: segmentRows.length ? segmentRows : [['—','—','Sin tramos suficientes','—','—','—']],
         headStyles, bodyStyles, alternateRowStyles:altStyles,
         styles:{ cellPadding:3, lineColor:C.line, lineWidth:.4 },
         didDrawPage: ()=>pdfChrome(doc, trip),
-        columnStyles:{ 3:{cellWidth:170} }
+        columnStyles:{ 2:{cellWidth:190} }
       });
       doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 14, margin:{left:M,right:M},
-        head:[['#','Lugar / referencia','Tipo','Finca','Lote','Puntos','Km']],
-        body: placeRows.length ? placeRows : [['—','Sin lugares referenciados','—','—','—','—','—']],
+        startY: doc.lastAutoTable.finalY + 12, margin:{left:M,right:M},
+        head:[['#','Inicio','Duración','Lugar / referencia','Tipo']],
+        body: stopRows.length ? stopRows : [['—','—','—','Sin paradas relevantes','—']],
         headStyles, bodyStyles, alternateRowStyles:altStyles,
         styles:{ cellPadding:3, lineColor:C.line, lineWidth:.4 },
         didDrawPage: ()=>pdfChrome(doc, trip),
-        columnStyles:{ 1:{cellWidth:150} }
+        columnStyles:{ 3:{cellWidth:230} }
+      });
+      doc.autoTable({
+        startY: doc.lastAutoTable.finalY + 12, margin:{left:M,right:M},
+        head:[['#','Lugar / referencia','Tipo','Puntos','Km']],
+        body: placeRows.length ? placeRows : [['—','Sin lugares referenciados','—','—','—']],
+        headStyles, bodyStyles, alternateRowStyles:altStyles,
+        styles:{ cellPadding:3, lineColor:C.line, lineWidth:.4 },
+        didDrawPage: ()=>pdfChrome(doc, trip),
+        columnStyles:{ 1:{cellWidth:250} }
       });
     } else {
       doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(C.dark[0],C.dark[1],C.dark[2]);
@@ -1762,7 +1906,7 @@ GPS: ${m.gpsQuality}`;
     on(el.btnCollapse, 'click', togglePanel);
     on(el.panelGrip, 'click', togglePanel);
     on(el.panel, 'click', (ev)=>ev.stopPropagation());
-    document.querySelectorAll('.control-block').forEach(d => d.addEventListener('toggle', ()=>{ if(d.open) expandPanel(); }));
+    document.querySelectorAll('.control-block').forEach(d => d.addEventListener('toggle', ()=>{ if(d.open && window.innerWidth <= 760) fullPanel(); else if(d.open) expandPanel(); }));
     ['cfgMinSec','cfgMinMeters','cfgStopMin','cfgStopSpeed','cfgBadAcc','cfgGapMin'].forEach(id => on($(id), 'change', saveCfg));
     document.addEventListener('visibilitychange', handleVisibility);
     document.addEventListener('click', (ev)=>{
@@ -1821,7 +1965,7 @@ GPS: ${m.gpsQuality}`;
   function tick(){ updateMetrics(state.activeTrip || latestTrip()); }
   function registerServiceWorker(){
     if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('service-worker.js?v=5.8.0').then(reg => { reg.update && reg.update(); }).catch(console.warn);
+      navigator.serviceWorker.register('service-worker.js?v=5.10.0').then(reg => { reg.update && reg.update(); }).catch(console.warn);
     }
   }
   function escapeHtml(v){ return String(v ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
@@ -1840,6 +1984,10 @@ GPS: ${m.gpsQuality}`;
     registerServiceWorker();
     loadLogoDataUrl();
     setupDemoUi();
+    if(isDemoMode() && DEMO_AUTOSTART && !state.activeTrip && !(state.history||[]).some(t => t && t.demo && t.status==='finished')){
+      demoSetStatus('Preparando simulación automática…');
+      setTimeout(()=>{ if(!state.activeTrip){ startDemoTrip(DEMO_AUTOSTART); } }, 900);
+    }
     el.bootMsg.classList.add('hidden');
     state.timer = setInterval(tick, 1000);
     // Autosalvado interno habilitado, sin mostrar mensajes técnicos en pantalla de campo.
@@ -1850,7 +1998,7 @@ GPS: ${m.gpsQuality}`;
       el.bootMsg.innerHTML = 'Esta app necesita abrirse por HTTPS (enlace https://) para usar GPS y compartir. Abra el enlace publicado, no el archivo local.';
       toast('Atención: sin HTTPS el GPS y el compartir no funcionarán. Use el enlace https:// publicado.', 8000);
     } else {
-      toast('CASUR Transportes GPS V5.7 lista. Use Modo Conductor para registrar o Modo Supervisor para revisar recorridos.');
+      toast('CASUR Transportes GPS Simulador V2 lista. Use Modo Conductor para registrar o Modo Supervisor para revisar recorridos.');
     }
   }
 

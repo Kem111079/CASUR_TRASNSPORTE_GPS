@@ -110,3 +110,22 @@ El GPS con la pantalla apagada o con la app totalmente en segundo plano no está
 - [ ] El botón **Enviar / Exportar** abre PDF, Excel y WhatsApp.
 - [ ] En Modo Supervisor se ocultan los botones rápidos del conductor.
 - [ ] El simulador inmersivo mantiene la ruta ida-retorno y permite exportar reporte.
+
+
+Versión recomendada para este repositorio: abrir `index.html` y usar **Iniciar simulación** para arrancar el recorrido demo automáticamente. También puede abrir `app.html?demo=1` para ver el panel del simulador sin autoarranque.
+
+
+## Actualización V2 · UI + Reporte Ejecutivo
+
+Esta versión del simulador agrega:
+- Bitácora móvil tipo bottom sheet de 3 niveles: mini, media y completa.
+- Mayor espacio visual para el mapa durante la simulación.
+- Reporte HTML/PDF más ejecutivo: mapa operativo con fondo vectorial, ruta, dirección, inicio, fin y paradas.
+- Compactación de lugares por tramos para que viajes largos no generen reportes excesivos.
+- Excel conserva detalle completo y agrega hoja `Tramos` para revisión rápida.
+
+Uso recomendado en presentación:
+1. Abrir `index.html`.
+2. Tocar **Iniciar simulación**.
+3. Esperar que finalice el ciclo o usar generación instantánea desde el panel.
+4. Mostrar PDF/Excel como evidencia del recorrido.

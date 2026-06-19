@@ -2,6 +2,14 @@
 
 PWA operativa para registrar recorridos de transporte en campo/ingenio con GPS, Leaflet, shape de lotes/fincas CASUR, referencias operativas manuales, paradas, historial local, folio robusto, PDF, Excel ejecutivo y WhatsApp.
 
+## Corrección V5.10 (afinado simulador + UI)
+
+- Se sincronizó `app.html` con la lógica V5.10: el **banner de rol** (Conductor/Supervisor) y el **tablero de supervisor** (recorridos, pendientes, km totales, último folio) ahora se muestran y se actualizan correctamente. Antes el código intentaba poblar esos elementos pero no existían en la página, por lo que quedaban invisibles.
+- Encabezado del panel dinámico por rol (“Registrar recorrido” / “Revisión y control”).
+- Tira visual de pasos del conductor (Datos → Iniciar → Finalizar → Enviar).
+- Se subió la versión a 5.10.0 en página, app y service worker para refrescar la caché automáticamente, y se eliminó un archivo de documentación duplicado en la raíz.
+- Punto de entrada para presentar: abrir `index.html` (portada) y tocar **Iniciar simulación**, o `app.html?demo=1` para abrir el panel del simulador.
+
 ## Novedades V5
 
 - **Modo Conductor / Modo Supervisor**: la app inicia en modo conductor para reducir carga visual. El modo supervisor muestra historial, opciones avanzadas, capas y controles técnicos.
@@ -118,3 +126,22 @@ La lógica de roles queda así:
 - **Supervisor**: revisa historial, rutas guardadas, exportación consolidada y opciones avanzadas.
 
 El simulador inmersivo se mantiene para presentación gerencial.
+
+
+Versión recomendada para este repositorio: abrir `index.html` y usar **Iniciar simulación** para arrancar el recorrido demo automáticamente. También puede abrir `app.html?demo=1` para ver el panel del simulador sin autoarranque.
+
+
+## Actualización V2 · UI + Reporte Ejecutivo
+
+Esta versión del simulador agrega:
+- Bitácora móvil tipo bottom sheet de 3 niveles: mini, media y completa.
+- Mayor espacio visual para el mapa durante la simulación.
+- Reporte HTML/PDF más ejecutivo: mapa operativo con fondo vectorial, ruta, dirección, inicio, fin y paradas.
+- Compactación de lugares por tramos para que viajes largos no generen reportes excesivos.
+- Excel conserva detalle completo y agrega hoja `Tramos` para revisión rápida.
+
+Uso recomendado en presentación:
+1. Abrir `index.html`.
+2. Tocar **Iniciar simulación**.
+3. Esperar que finalice el ciclo o usar generación instantánea desde el panel.
+4. Mostrar PDF/Excel como evidencia del recorrido.

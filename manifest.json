@@ -1,8 +1,8 @@
 {
-  "name": "CASUR Transportes GPS · Conductor y envío",
-  "short_name": "CASUR GPS",
-  "description": "PWA CASUR para recorridos de transporte con modo Conductor claro, envío/exportación y simulador inmersivo.",
-  "start_url": "./index.html",
+  "name": "CASUR Transportes GPS · Simulador V2",
+  "short_name": "CASUR Sim",
+  "description": "Simulador inmersivo de recorridos de transporte cañero con bitácora compacta, mapa operativo y reporte ejecutivo.",
+  "start_url": "index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
