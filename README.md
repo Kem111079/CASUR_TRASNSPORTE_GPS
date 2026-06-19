@@ -1,25 +1,32 @@
-# CASUR Transportes GPS · V1
+# CASUR Transportes GPS · V2 Robusta
 
-PWA satélite basada conceptualmente en CASUR Maps V22.6, enfocada en registrar recorridos operativos de transporte en campo/ingenio.
+PWA para registrar recorridos operativos de transporte en campo/ingenio, vinculando trayectoria GPS con lotes/fincas CASUR y generando reportes para revisión operativa.
 
 ## Objetivo
 
-Permitir que un transportista o supervisor pueda:
+Registrar recorridos manuales, medir distancia, duración, velocidad aproximada, rumbo, paradas, calidad GPS y referencias de finca/lote, para apoyar el control de costos, tiempos muertos, desvíos y utilización del recurso transporte.
 
-1. ingresar datos básicos del recorrido;
-2. iniciar manualmente el GPS;
-3. registrar puntos durante la ruta;
-4. finalizar el recorrido;
-5. obtener resumen automático;
-6. exportar CSV de puntos y resumen;
-7. generar reporte HTML imprimible;
-8. compartir resumen por WhatsApp;
-9. generar tarjeta PNG ejecutiva.
+## Qué incluye esta versión
+
+- PWA compatible con GitHub Pages.
+- Mapa Leaflet con capa de lotes/fincas desde `data/poligonos_casur.geojson`.
+- Recorrido GPS con línea, flechas de rumbo, inicio, fin, paradas y puntos clave.
+- Botón manual **Iniciar recorrido** y **Finalizar recorrido**.
+- Sin rastreo oculto: solo registra cuando el usuario inicia.
+- Autosave de recorrido activo en `localStorage`.
+- Recuperación de recorrido activo si se cierra o recarga el navegador.
+- Historial local de recorridos finalizados.
+- Exportación Excel `.xlsx` con varias pestañas cuando el módulo XLSX está disponible.
+- Respaldo `.xls` HTML si no carga el módulo XLSX.
+- Reporte HTML imprimible con trayectoria simplificada.
+- Texto para WhatsApp.
+- Tarjeta PNG resumen.
+- Service worker con versión nueva para evitar caché viejo.
 
 ## Estructura
 
 ```text
-CASUR_TRANSPORTES_GPS_V1/
+CASUR_TRANSPORTES_GPS_V2_ROBUSTA/
 ├─ index.html
 ├─ app.js
 ├─ styles.css
@@ -30,7 +37,9 @@ CASUR_TRANSPORTES_GPS_V1/
 │  └─ logo_casur.png
 ├─ icons/
 ├─ data/
-│  └─ .gitkeep
+│  ├─ poligonos_casur.geojson
+│  └─ metadata.json
+├─ docs/
 ├─ README.md
 ├─ README_USO_CAMPO.md
 └─ CHECKLIST_PRUEBA.md
@@ -38,99 +47,37 @@ CASUR_TRANSPORTES_GPS_V1/
 
 ## Instalación en GitHub Pages
 
-1. Crear un repositorio, por ejemplo: `casur-transportes-gps`.
-2. Subir todo el contenido de esta carpeta a la raíz del repositorio.
-3. Activar GitHub Pages:
-   - Settings → Pages.
-   - Source: `Deploy from a branch`.
-   - Branch: `main` / root.
-4. Abrir la URL HTTPS generada por GitHub Pages.
-5. En Android/iPhone, abrir desde navegador y elegir “Agregar a pantalla de inicio” o “Instalar app”.
+1. Subir todo el contenido de la carpeta a un repositorio.
+2. Activar GitHub Pages desde `Settings > Pages`.
+3. Usar HTTPS.
+4. Abrir la URL desde el celular.
+5. En Chrome/Android: menú `⋮ > Agregar a pantalla principal`.
+6. En iPhone/Safari: botón compartir > `Agregar a pantalla de inicio`.
 
-## Requisitos
+## Limitación importante de segundo plano
 
-- Debe abrirse desde HTTPS o localhost para que el navegador permita GPS.
-- Leaflet se carga desde CDN con fallback. Si el teléfono no tiene conexión, el mapa puede no cargar, pero el registro local puede mantenerse si la app ya estaba abierta.
-- En iPhone/Android, el sistema puede pausar ubicación si el navegador queda totalmente en segundo plano. Esta es una restricción del sistema operativo, no de la app.
+Esta versión es PWA. Puede conservar el recorrido y seguir registrando mientras el navegador lo permita, pero **no garantiza GPS continuo en segundo plano** si el teléfono bloquea pantalla, cambia a otra app, activa ahorro de batería o el sistema suspende el navegador.
 
-## Privacidad y uso responsable
+La arquitectura queda preparada para una migración posterior a app híbrida con Capacitor/native wrapper, donde sí se puede trabajar con ubicación en segundo plano mediante permisos explícitos y notificación visible.
 
-La app no hace rastreo oculto.
+## Exportación Excel
 
-- El usuario debe pulsar manualmente **Iniciar recorrido**.
-- La pantalla muestra claramente si el GPS está activo.
-- El usuario puede pulsar **Finalizar recorrido**.
-- Los registros se guardan localmente en el navegador.
-- El usuario puede borrar los datos locales desde el panel.
-- No hay backend ni envío automático de datos.
+El botón **Descargar Excel** genera un archivo con nombre automático:
 
-## Lógica GPS V1
+```text
+CASUR_Recorrido_[placa/equipo/conductor]_[fecha_hora].xlsx
+```
 
-- Guarda puntos por tiempo y movimiento.
-- Regla por defecto: cada 4 segundos y/o cuando se mueve más de 12 metros.
-- Evita puntos duplicados si el equipo está detenido.
-- Calcula distancia con fórmula Haversine.
-- Evita sumar distancia cuando la precisión es mala o el salto implica una velocidad poco razonable.
-- Detecta paradas simples por baja velocidad o puntos cercanos durante varios minutos.
+Pestañas incluidas:
 
-## Exportaciones
+1. Resumen Ejecutivo
+2. Detalle GPS
+3. Paradas
+4. Lotes Fincas
+5. Control Operativo
+6. Eventos
+7. Puntos Clave
 
-### CSV puntos GPS
+## Datos locales
 
-Columnas:
-
-- route_id
-- timestamp
-- lat
-- lng
-- precision_m
-- velocidad_kmh
-- rumbo
-- segmento_m
-- distancia_acumulada_km
-- calidad_gps
-- razon
-- distancia_ignorada
-
-### CSV resumen
-
-Columnas:
-
-- route_id
-- conductor
-- placa
-- equipo
-- tipo_viaje
-- origen
-- destino
-- inicio
-- fin
-- duración
-- distancia
-- velocidad promedio
-- velocidad máxima
-- paradas
-- tiempo detenido
-- puntos
-- calidad GPS
-- observaciones
-
-## Reporte HTML
-
-El botón **Reporte HTML** descarga un archivo `.html` y abre una vista imprimible. Desde Chrome, Edge o Safari puede guardarse como PDF con `Imprimir → Guardar como PDF`.
-
-## Versionado
-
-- `CASUR_TRANSPORTES_GPS_V1` corresponde al primer prototipo funcional.
-- Para evitar caché viejo en PWA, cada nueva versión debe cambiar:
-  - query string de `app.js` y `styles.css` en `index.html`;
-  - `CACHE_NAME` en `service-worker.js`;
-  - versión visible en README.
-
-## Próximas fases recomendadas
-
-- V2: mejorar paradas con agrupación espacial más precisa.
-- V3: reporte HTML con mapa más completo o captura de recorrido.
-- V4: tarjeta visual con más diseño y firma institucional.
-- V5: historial consolidado por conductor/placa.
-- V6: migrar historial a IndexedDB para alto volumen de recorridos.
+Los recorridos se guardan en el navegador del equipo. Si el usuario borra datos del sitio, cambia de navegador o limpia caché/datos locales, puede perder el historial. Por eso se recomienda descargar el Excel al finalizar recorridos importantes.

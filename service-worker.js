@@ -1,75 +1,35 @@
-const CACHE_NAME = 'casur-transportes-gps-v1-20260618-01';
-const CORE_ASSETS = [
-  './',
-  './index.html',
-  './app.js',
-  './styles.css',
-  './manifest.json',
-  './offline.html',
-  './assets/logo_casur.png',
-  './icons/icon-180.png',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/maskable-icon-512.png',
-  './icons/favicon-32.png',
-  './icons/favicon-16.png'
+const CACHE_NAME = 'casur-transportes-gps-v2-robusta-20260618-01';
+const APP_SHELL = [
+  './', './index.html', './styles.css?v=2.0.0', './app.js?v=2.0.0', './manifest.json', './offline.html',
+  './assets/logo_casur.png', './data/poligonos_casur.geojson?v=2.0.0', './data/metadata.json',
+  './icons/icon-192.png', './icons/icon-512.png', './icons/favicon.png'
 ];
 
-self.addEventListener('install', event => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    await Promise.allSettled(CORE_ASSETS.map(asset => cache.add(asset)));
-    await self.skipWaiting();
-  })());
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL.map(u => new Request(u, { cache:'reload' }))).catch(err => console.warn('SW install parcial', err))));
 });
 
-self.addEventListener('activate', event => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
-    await self.clients.claim();
-  })());
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-function isShellRequest(url){
-  return url.origin === self.location.origin && (
-    url.pathname.endsWith('/') ||
-    url.pathname.endsWith('/index.html') ||
-    url.pathname.endsWith('/app.js') ||
-    url.pathname.endsWith('/styles.css') ||
-    url.pathname.endsWith('/manifest.json') ||
-    url.pathname.endsWith('/service-worker.js') ||
-    url.pathname.endsWith('/offline.html')
-  );
-}
-
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', (event) => {
   const req = event.request;
   if(req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  if(isShellRequest(url)){
-    event.respondWith(fetch(req).then(resp => {
-      const copy = resp.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(req, copy)).catch(()=>{});
-      return resp;
-    }).catch(() => caches.match(req).then(cached => cached || caches.match('./offline.html'))));
+  // Tiles y CDNs: red primero, caché como respaldo. Si nunca se cargaron, no bloquea la app.
+  if(url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('arcgisonline.com') || url.hostname.includes('unpkg.com') || url.hostname.includes('cdn.jsdelivr.net')){
+    event.respondWith(fetch(req).then(res => {
+      const copy = res.clone(); caches.open(CACHE_NAME).then(cache => cache.put(req, copy)).catch(()=>{}); return res;
+    }).catch(() => caches.match(req)));
     return;
   }
 
-  if(url.origin !== self.location.origin){
-    event.respondWith(fetch(req).catch(() => caches.match(req)));
-    return;
-  }
-
+  // App shell: caché primero con actualización silenciosa.
   event.respondWith(caches.match(req).then(cached => {
-    return cached || fetch(req).then(resp => {
-      const copy = resp.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(req, copy)).catch(()=>{});
-      return resp;
-    }).catch(() => {
-      if(req.mode === 'navigate') return caches.match('./offline.html');
-      return cached;
-    });
+    const network = fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE_NAME).then(cache => cache.put(req, copy)).catch(()=>{}); return res; }).catch(() => cached || caches.match('./offline.html'));
+    return cached || network;
   }));
 });

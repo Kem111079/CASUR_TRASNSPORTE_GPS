@@ -1,54 +1,38 @@
-# README de uso en campo · CASUR Transportes GPS
+# Uso en campo · CASUR Transportes GPS
 
 ## Antes de salir
 
-1. Abra la app desde el enlace HTTPS de GitHub Pages.
-2. Permita acceso a ubicación cuando el navegador lo solicite.
-3. Verifique que el teléfono tenga batería suficiente.
-4. Mantenga el navegador/app abierto durante el recorrido.
-5. Complete los datos básicos:
-   - conductor;
-   - placa;
-   - equipo;
-   - tipo de viaje;
-   - origen;
-   - destino;
-   - observación inicial si aplica.
+1. Abrir la app desde la pantalla principal del teléfono.
+2. Verificar que el mapa carga.
+3. Revisar que la capa indique lotes/fincas cargados.
+4. Completar conductor, placa, equipo, origen, destino y tipo de viaje.
+5. Mantener permisos de ubicación activos.
+6. Evitar modo ahorro de batería cuando el recorrido sea crítico.
 
 ## Durante el recorrido
 
-1. Pulse **Iniciar recorrido**.
-2. Verifique que aparezca el estado **GPS activo**.
-3. La app mostrará:
-   - distancia acumulada;
-   - duración;
-   - velocidad promedio;
-   - velocidad máxima;
-   - puntos GPS registrados;
-   - paradas detectadas.
-4. Si la señal GPS baja, la app mostrará advertencia de precisión.
-5. Si el navegador se cierra accidentalmente, abra nuevamente la app. El recorrido activo debe aparecer recuperado y podrá pulsar **Reactivar GPS**.
+1. Tocar **Iniciar recorrido**.
+2. Confirmar que aparece **GPS activo**.
+3. La app mostrará distancia, duración, velocidad, paradas y referencia de finca/lote.
+4. Puede tocar **Guardar punto clave** para marcar eventos importantes: espera, carga, descarga, taller, acceso dañado, desvío, etc.
+5. Si abre otra aplicación, el recorrido queda guardado, pero el GPS puede pausarse dependiendo del teléfono. Al volver, la app registrará un evento si detecta un espacio largo sin puntos.
 
-## Al finalizar
+## Al terminar
 
-1. Pulse **Finalizar recorrido**.
-2. Escriba observación final si corresponde.
-3. Revise el resumen automático.
-4. Exporte según necesidad:
-   - **CSV puntos** para auditoría técnica;
-   - **CSV resumen** para control operativo;
-   - **Reporte HTML** para imprimir o guardar PDF;
-   - **WhatsApp** para compartir lectura corta;
-   - **Tarjeta PNG** para evidencia visual rápida.
+1. Tocar **Finalizar recorrido**.
+2. Revisar resumen automático.
+3. Descargar el Excel del recorrido.
+4. Generar reporte HTML si requiere imprimir/guardar PDF.
+5. Compartir resumen por WhatsApp si aplica.
 
 ## Recomendaciones operativas
 
-- No iniciar recorrido antes de que el camión realmente salga.
-- No dejar el recorrido abierto después de terminar la ruta.
-- Si la precisión GPS está muy baja, esperar unos segundos en zona abierta.
-- En trayectos largos, evitar bloquear completamente la ubicación del navegador desde ajustes del sistema.
-- Esta app mide aproximaciones operativas; no sustituye dispositivos GPS certificados ni telemetría especializada.
+- Usar la app para comparar recorridos reales contra rutas esperadas.
+- Revisar paradas largas y porcentaje de tiempo detenido.
+- Revisar si el recorrido pasó por la finca/lote esperado.
+- Descargar el Excel al final de cada recorrido importante para evitar pérdida de datos.
+- Para pruebas formales, usar recorridos cortos primero y validar contra odómetro o distancia conocida.
 
-## Privacidad
+## Privacidad y uso responsable
 
-La app solo registra cuando el usuario pulsa **Iniciar recorrido**. No rastrea en segundo plano de forma oculta y no envía información a servidores.
+La app no rastrea de forma oculta. Solo registra después de tocar **Iniciar recorrido** y se detiene al tocar **Finalizar recorrido**. El GPS activo se muestra en pantalla. El usuario puede borrar el historial local.

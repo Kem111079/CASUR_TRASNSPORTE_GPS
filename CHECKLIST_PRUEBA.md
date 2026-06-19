@@ -1,68 +1,75 @@
-# Checklist de prueba · CASUR Transportes GPS V1
+# Checklist de prueba · CASUR Transportes GPS V2 Robusta
 
-## 1. Carga PWA
+## 1. Carga inicial
 
-- [ ] Abre correctamente desde GitHub Pages HTTPS.
+- [ ] La app abre en GitHub Pages con HTTPS.
 - [ ] No se queda pegada en “Cargando”.
-- [ ] Carga `index.html`, `app.js`, `styles.css`, `manifest.json` y `service-worker.js`.
-- [ ] Permite instalar como app en Android/iPhone.
-- [ ] Al actualizar versión, no queda caché viejo.
+- [ ] Se muestra mapa satelital.
+- [ ] Carga capa de lotes/fincas.
+- [ ] Botón Instalar aparece cuando el navegador lo permite.
 
 ## 2. GPS
 
-- [ ] Solicita permiso de ubicación al iniciar recorrido.
-- [ ] Muestra claramente “GPS activo”.
-- [ ] Muestra advertencia si precisión es baja.
-- [ ] Permite centrar la posición en el mapa.
-- [ ] Permite finalizar aunque el GPS tenga mala señal.
-- [ ] Permite reactivar GPS si se recupera un recorrido activo.
+- [ ] Al tocar Iniciar recorrido solicita permiso de ubicación.
+- [ ] Muestra GPS activo.
+- [ ] Muestra precisión GPS.
+- [ ] Muestra velocidad aproximada.
+- [ ] Muestra rumbo.
+- [ ] Permite reiniciar GPS.
+- [ ] Permite finalizar aunque la señal sea mala.
 
 ## 3. Recorrido
 
-- [ ] Inicia recorrido con fecha/hora inicial.
-- [ ] Registra punto inicial.
-- [ ] Acumula distancia en km.
-- [ ] Actualiza duración en tiempo real.
-- [ ] Registra puntos con lat/lng/precisión/velocidad/rumbo.
-- [ ] Evita duplicados cuando el equipo está detenido.
-- [ ] No suma saltos GPS evidentemente malos.
-- [ ] Finaliza recorrido con fecha/hora final.
+- [ ] Dibuja línea del recorrido.
+- [ ] Muestra flechas de rumbo.
+- [ ] Marca inicio.
+- [ ] Marca fin.
+- [ ] Acumula distancia razonable.
+- [ ] Acumula duración en tiempo real.
+- [ ] No duplica demasiados puntos estando detenido.
 
-## 4. Paradas
+## 4. Lotes / fincas
 
-- [ ] Detecta paradas por baja velocidad o puntos cercanos.
-- [ ] Calcula cantidad de paradas.
-- [ ] Calcula tiempo detenido.
-- [ ] Muestra paradas en reporte.
+- [ ] El punto actual muestra finca/lote si cae dentro del shape.
+- [ ] El Excel incluye finca/lote por punto GPS.
+- [ ] El resumen incluye lotes/fincas recorridas.
+- [ ] El botón Lotes oculta y muestra la capa.
 
-## 5. Persistencia local
+## 5. Paradas
 
-- [ ] Guarda recorrido activo en `localStorage`.
-- [ ] Si se cierra navegador, recupera el recorrido activo.
-- [ ] No reactiva GPS automáticamente sin acción del usuario.
-- [ ] Guarda historial local después de finalizar.
-- [ ] Permite borrar registros locales.
+- [ ] Detecta parada después del umbral configurado.
+- [ ] Muestra paradas en mapa.
+- [ ] Excel incluye tabla de paradas.
+- [ ] Resumen muestra tiempo detenido.
 
-## 6. Exportaciones
+## 6. Persistencia
 
-- [ ] Exporta CSV de puntos con extensión `.csv`.
-- [ ] Exporta CSV resumen con extensión `.csv`.
-- [ ] Genera reporte HTML con extensión `.html`.
-- [ ] El reporte HTML puede imprimirse como PDF.
-- [ ] Genera texto para WhatsApp.
-- [ ] Genera tarjeta PNG.
+- [ ] Al recargar la página recupera recorrido activo.
+- [ ] Al volver a la app después de cambiar de aplicación no pierde los puntos anteriores.
+- [ ] Si hubo pausa larga, aparece evento de posible pausa/segundo plano.
+- [ ] Al finalizar queda en historial local.
+- [ ] Permite borrar historial local.
 
-## 7. UX móvil
+## 7. Exportaciones
 
-- [ ] Botones son suficientemente grandes para campo.
-- [ ] Panel lateral abre y cierra correctamente.
-- [ ] Panel se cierra tocando fuera.
-- [ ] La barra inferior aparece durante recorrido activo.
-- [ ] El diseño es legible bajo sol.
+- [ ] Descarga Excel con nombre fechado.
+- [ ] Excel abre en Windows.
+- [ ] Excel contiene pestañas: Resumen Ejecutivo, Detalle GPS, Paradas, Lotes Fincas, Control Operativo, Eventos, Puntos Clave.
+- [ ] Reporte HTML abre e imprime.
+- [ ] WhatsApp genera texto correcto.
+- [ ] Imagen resumen se descarga como PNG.
 
-## 8. Seguridad operativa
+## 8. Prueba de campo recomendada
 
-- [ ] La app indica que no hace rastreo oculto.
-- [ ] El recorrido solo inicia manualmente.
-- [ ] El recorrido finaliza manualmente.
-- [ ] No existe envío automático a backend.
+- [ ] Prueba 1: recorrido corto 5–10 minutos con pantalla encendida.
+- [ ] Prueba 2: abrir WhatsApp 2–3 minutos y volver.
+- [ ] Prueba 3: bloquear pantalla 2–3 minutos y volver.
+- [ ] Prueba 4: finalizar y comparar distancia contra odómetro/referencia.
+- [ ] Prueba 5: descargar Excel y validar puntos/lotes/paradas.
+
+## 9. Observaciones para futura app híbrida
+
+- [ ] Documentar teléfonos donde la PWA pausó GPS.
+- [ ] Documentar comportamiento en Android vs iPhone.
+- [ ] Identificar necesidad real de segundo plano continuo.
+- [ ] Preparar migración a Capacitor/native wrapper con notificación persistente y permisos explícitos.
